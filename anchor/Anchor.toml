@@ -1,0 +1,19 @@
+[toolchain]
+
+[features]
+resolution = true
+seeds = true
+skip-lint = false
+
+[programs.localnet]
+verdict = "F6r87m6HEj3Seh9yBmghkPfQBSk1i8mNAMThYWkmbqvy"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
