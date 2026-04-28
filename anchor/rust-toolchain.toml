@@ -1,0 +1,14 @@
+[toolchain]
+# Anchor 0.30.1's IDL build sets RUSTFLAGS="--cfg procmacro2_semver_exempt",
+# which activates a code path in proc-macro2 that calls
+# `proc_macro::Span::source_file()`. That nightly-only API was removed from
+# host rustc somewhere between 1.79 and 1.94 (1.94 has it renamed to `source`).
+# Pin host channel to 1.79.0 — the last release where the IDL build path
+# still resolves cleanly under stable.
+#
+# This only affects host-side builds (anchor-syn IDL extraction, cargo metadata).
+# The on-chain SBF artifact is built by `cargo-build-sbf` using the
+# platform-tools-bundled cargo (1.89), which is unaffected by this pin.
+channel = "1.79.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
