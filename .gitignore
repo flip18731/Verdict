@@ -1,0 +1,44 @@
+# Rust / Anchor
+target/
+.anchor/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.pnp.*
+.yarn/cache
+.yarn/install-state.gz
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Solana / test validator
+test-ledger/
+.test-ledger/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env
+app/.env.local
+app/.env*.local
+.env.local
+
+# Demo wallets (keys must not be committed)
+scripts/demo-wallets/*.json

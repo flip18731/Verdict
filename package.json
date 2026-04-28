@@ -1,0 +1,13 @@
+{
+  "name": "verdict-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Verdict — arbitration & dispute resolution for AI-agent commerce on Solana",
+  "scripts": {
+    "build:sdk": "pnpm --filter verdict-sdk build",
+    "test:sdk": "pnpm --filter verdict-sdk test",
+    "dev:app": "pnpm --filter verdict-app dev",
+    "build:app": "pnpm --filter verdict-app build"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
