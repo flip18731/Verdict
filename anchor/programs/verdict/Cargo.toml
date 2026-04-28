@@ -19,10 +19,10 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 [dependencies]
 anchor-lang = "=0.30.1"
 anchor-spl = { version = "=0.30.1", default-features = false, features = ["token", "associated_token"] }
-# Transitive pins. Several of solana-program 1.18.x's recursive deps now have
-# new releases that require Cargo's `edition2024` feature, which platform-tools
-# cargo (1.75) and host cargo (1.77.2) cannot parse. We pin them to the last
-# pre-edition2024 release that still satisfies the upstream version reqs.
+# Transitive pins: Agave 2.3.13 ships platform-tools v1.48 with cargo 1.84.0,
+# which is one minor before edition2024 stabilization (1.85). These pin the
+# blast-radius transitive deps to their last pre-edition2024 releases so the
+# resolver doesn't need to parse newer manifests during `cargo metadata`.
 blake3 = "=1.8.3"
 proc-macro-crate = "=3.3.0"
 toml_edit = "=0.22.27"
