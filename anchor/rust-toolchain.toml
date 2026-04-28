@@ -1,4 +1,9 @@
 [toolchain]
-channel = "1.77.2"
+# Originally pinned to 1.77.2 because platform-tools v1.41 shipped cargo 1.75,
+# which couldn't read v4 lockfiles. After swapping the cached platform-tools to
+# v1.54 (cargo 1.89, rustc 1.89), the host cargo just needs to support
+# edition2024 manifests in the registry. 1.94.1 is the host default rustup has
+# installed; using it keeps host and platform-tools both edition2024-aware.
+channel = "1.94.1"
 profile = "minimal"
 components = ["rustfmt", "clippy"]
