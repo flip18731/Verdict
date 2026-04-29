@@ -7,8 +7,11 @@ import {
   airdrop,
   createEmptyAta,
   expectAnchorError,
+  findDisputePda,
   findEscrowPda,
+  findJurorPda,
   findVaultPda,
+  findVotePda,
   fundWalletWithUsdc,
   setupTestMint,
   TEST_USDC_DECIMALS,
@@ -166,6 +169,211 @@ describe("verdict", () => {
       // Vault and Escrow account both closed (rent recovered to payer).
       expect(await accountExists(provider.connection, vaultPda)).to.be.false;
       expect(await accountExists(provider.connection, escrowPda)).to.be.false;
+    });
+  });
+
+  // ---------- Dispute resolution paths ----------
+
+  // Helper: register a fresh juror keypair, returning the keypair + its PDA.
+  async function registerJuror(): Promise<{ kp: Keypair; pda: PublicKey }> {
+    const kp = Keypair.generate();
+    await airdrop(provider.connection, kp.publicKey, 5);
+    const [pda] = findJurorPda(program, kp.publicKey);
+    await program.methods
+      .registerJuror()
+      .accounts({ authority: kp.publicKey } as any)
+      .signers([kp])
+      .rpc();
+    return { kp, pda };
+  }
+
+  // Helper: stand up a fully-funded escrow with a dispute open, panel size 3.
+  // Returns every PDA + signer the caller might want to drive votes / resolve.
+  async function setupDispute(opts: {
+    amountUsdc: number;
+    votingWindowSeconds: number;
+  }): Promise<{
+    payer: Keypair;
+    payerAta: PublicKey;
+    merchant: Keypair;
+    merchantAta: PublicKey;
+    escrowPda: PublicKey;
+    vaultPda: PublicKey;
+    disputePda: PublicKey;
+    amount: BN;
+    initialTotal: bigint;
+  }> {
+    const payer = Keypair.generate();
+    const merchant = Keypair.generate();
+    await airdrop(provider.connection, payer.publicKey);
+    const payerAta = await fundWalletWithUsdc(provider, mintAuthority, mint, payer, 100);
+    const merchantAta = await createEmptyAta(provider, mintAuthority, mint, merchant.publicKey);
+
+    const payerInitial = await tokenBalance(provider.connection, payerAta);
+    const merchantInitial = await tokenBalance(provider.connection, merchantAta);
+    const initialTotal = payerInitial + merchantInitial;
+
+    const escrowId = nextEscrowId();
+    const [escrowPda] = findEscrowPda(program, payer.publicKey, escrowId);
+    const [vaultPda] = findVaultPda(program, escrowPda);
+    const [disputePda] = findDisputePda(program, escrowPda);
+    const amount = usdc(opts.amountUsdc);
+
+    await program.methods
+      .initializeEscrow(escrowId, amount, new BN(0))
+      .accounts({
+        payer: payer.publicKey,
+        merchant: merchant.publicKey,
+        mint,
+        payerTokenAccount: payerAta,
+      } as any)
+      .signers([payer])
+      .rpc();
+
+    await program.methods
+      .raiseDispute("ipfs://demo-evidence", new BN(opts.votingWindowSeconds))
+      .accounts({
+        payer: payer.publicKey,
+        escrow: escrowPda,
+      } as any)
+      .signers([payer])
+      .rpc();
+
+    return {
+      payer,
+      payerAta,
+      merchant,
+      merchantAta,
+      escrowPda,
+      vaultPda,
+      disputePda,
+      amount,
+      initialTotal,
+    };
+  }
+
+  // Helper: drive a vote from juror.kp on the given dispute.
+  async function castVote(
+    juror: { kp: Keypair; pda: PublicKey },
+    dispute: PublicKey,
+    choice: "refund" | "release",
+  ): Promise<void> {
+    await program.methods
+      .castVote(choice === "refund" ? { refund: {} } : { release: {} })
+      .accounts({
+        authority: juror.kp.publicKey,
+        dispute,
+      } as any)
+      .signers([juror.kp])
+      .rpc();
+  }
+
+  // Helper: resolve the dispute. Caller can be any signer.
+  async function resolveDispute(ctx: {
+    caller: Keypair;
+    payer: PublicKey;
+    payerAta: PublicKey;
+    merchantAta: PublicKey;
+    escrowPda: PublicKey;
+    vaultPda: PublicKey;
+    disputePda: PublicKey;
+  }): Promise<void> {
+    await program.methods
+      .resolveDispute()
+      .accounts({
+        caller: ctx.caller.publicKey,
+        escrow: ctx.escrowPda,
+        dispute: ctx.disputePda,
+        vault: ctx.vaultPda,
+        payerTokenAccount: ctx.payerAta,
+        merchantTokenAccount: ctx.merchantAta,
+        payerRentRecipient: ctx.payer,
+      } as any)
+      .signers([ctx.caller])
+      .rpc();
+  }
+
+  describe("resolve_dispute", () => {
+    it("2 refund + 1 release votes → payer is refunded the full amount", async () => {
+      const ctx = await setupDispute({ amountUsdc: 50, votingWindowSeconds: 120 });
+      const j1 = await registerJuror();
+      const j2 = await registerJuror();
+      const j3 = await registerJuror();
+      await castVote(j1, ctx.disputePda, "refund");
+      await castVote(j2, ctx.disputePda, "refund");
+      await castVote(j3, ctx.disputePda, "release");
+
+      await resolveDispute({
+        caller: ctx.payer,
+        payer: ctx.payer.publicKey,
+        payerAta: ctx.payerAta,
+        merchantAta: ctx.merchantAta,
+        escrowPda: ctx.escrowPda,
+        vaultPda: ctx.vaultPda,
+        disputePda: ctx.disputePda,
+      });
+
+      const payerEnd = await tokenBalance(provider.connection, ctx.payerAta);
+      const merchantEnd = await tokenBalance(provider.connection, ctx.merchantAta);
+      expect(merchantEnd).to.equal(0n);
+      expect(payerEnd).to.equal(ctx.initialTotal);
+      expect(await accountExists(provider.connection, ctx.vaultPda)).to.be.false;
+
+      const dispute = await program.account.dispute.fetch(ctx.disputePda);
+      expect(dispute.status).to.deep.equal({ resolved: {} });
+      expect(dispute.outcome).to.deep.equal({ refund: {} });
+    });
+
+    it("1 refund + 2 release votes → merchant gets the full amount", async () => {
+      const ctx = await setupDispute({ amountUsdc: 75, votingWindowSeconds: 120 });
+      const j1 = await registerJuror();
+      const j2 = await registerJuror();
+      const j3 = await registerJuror();
+      await castVote(j1, ctx.disputePda, "release");
+      await castVote(j2, ctx.disputePda, "release");
+      await castVote(j3, ctx.disputePda, "refund");
+
+      await resolveDispute({
+        caller: ctx.payer,
+        payer: ctx.payer.publicKey,
+        payerAta: ctx.payerAta,
+        merchantAta: ctx.merchantAta,
+        escrowPda: ctx.escrowPda,
+        vaultPda: ctx.vaultPda,
+        disputePda: ctx.disputePda,
+      });
+
+      const payerEnd = await tokenBalance(provider.connection, ctx.payerAta);
+      const merchantEnd = await tokenBalance(provider.connection, ctx.merchantAta);
+      expect(merchantEnd).to.equal(BigInt(ctx.amount.toString()));
+      expect(payerEnd + merchantEnd).to.equal(ctx.initialTotal);
+
+      const dispute = await program.account.dispute.fetch(ctx.disputePda);
+      expect(dispute.outcome).to.deep.equal({ release: {} });
+    });
+
+    it("0-0 votes after window expires → tie-break Release (MVP rule)", async () => {
+      const ctx = await setupDispute({ amountUsdc: 30, votingWindowSeconds: 2 });
+      // No jurors vote. Wait out the window so resolve() is allowed.
+      await sleep(3500);
+
+      await resolveDispute({
+        caller: ctx.payer,
+        payer: ctx.payer.publicKey,
+        payerAta: ctx.payerAta,
+        merchantAta: ctx.merchantAta,
+        escrowPda: ctx.escrowPda,
+        vaultPda: ctx.vaultPda,
+        disputePda: ctx.disputePda,
+      });
+
+      const merchantEnd = await tokenBalance(provider.connection, ctx.merchantAta);
+      expect(merchantEnd).to.equal(BigInt(ctx.amount.toString()));
+
+      const dispute = await program.account.dispute.fetch(ctx.disputePda);
+      expect(dispute.outcome).to.deep.equal({ release: {} });
+      expect(dispute.votesForRefund).to.equal(0);
+      expect(dispute.votesForRelease).to.equal(0);
     });
   });
 });
