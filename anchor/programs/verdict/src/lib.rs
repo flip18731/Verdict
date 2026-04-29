@@ -13,7 +13,7 @@ pub mod state;
 use instructions::*;
 use state::DisputeOutcome;
 
-declare_id!("69NkKNcJFMcBbtTzt9t3Xx9nWF67i1dMrG74nU54bNRR");
+declare_id!("5L1XQWLcmYuKVEx1B8igHJahzhhCroANStoP9WGg5EKV");
 
 #[program]
 pub mod verdict {
