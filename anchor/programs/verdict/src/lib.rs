@@ -1,6 +1,12 @@
+// Anchor 0.31.1's #[program] macro still calls the deprecated
+// AccountInfo::realloc (renamed to resize() in solana-program 1.18+). Fixed
+// upstream in Anchor 0.32+. Whitelist here so otherwise-clean builds stay
+// warning-free. Remove this when bumping Anchor.
+#![allow(deprecated)]
+
 use anchor_lang::prelude::*;
 
-declare_id!("F6r87m6HEj3Seh9yBmghkPfQBSk1i8mNAMThYWkmbqvy");
+declare_id!("69NkKNcJFMcBbtTzt9t3Xx9nWF67i1dMrG74nU54bNRR");
 
 #[program]
 pub mod verdict {
