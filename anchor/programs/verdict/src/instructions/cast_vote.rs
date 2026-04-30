@@ -9,6 +9,7 @@ pub struct CastVote<'info> {
     pub authority: Signer<'info>,
 
     #[account(
+        mut,
         seeds = [b"juror", authority.key().as_ref()],
         bump = juror.bump,
         constraint = juror.is_active @ VerdictError::JurorInactive,
