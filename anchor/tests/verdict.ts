@@ -376,4 +376,134 @@ describe("verdict", () => {
       expect(dispute.votesForRelease).to.equal(0);
     });
   });
+
+  // ---------- Negative tests (batch 3: authorization + double-vote) ----------
+
+  describe("negative cases", () => {
+    it("non-payer attempts release_escrow → Unauthorized", async () => {
+      // Stand up a funded escrow with payerA as the legitimate payer.
+      const payerA = Keypair.generate();
+      const merchant = Keypair.generate();
+      const attacker = Keypair.generate();
+      await airdrop(provider.connection, payerA.publicKey);
+      await airdrop(provider.connection, attacker.publicKey);
+      const payerAta = await fundWalletWithUsdc(provider, mintAuthority, mint, payerA, 50);
+      const merchantAta = await createEmptyAta(provider, mintAuthority, mint, merchant.publicKey);
+
+      const escrowId = nextEscrowId();
+      const [escrowPda] = findEscrowPda(program, payerA.publicKey, escrowId);
+      const [vaultPda] = findVaultPda(program, escrowPda);
+
+      await program.methods
+        .initializeEscrow(escrowId, usdc(10), new BN(0))
+        .accounts({
+          payer: payerA.publicKey,
+          merchant: merchant.publicKey,
+          mint,
+          payerTokenAccount: payerAta,
+        } as any)
+        .signers([payerA])
+        .rpc();
+
+      try {
+        await program.methods
+          .releaseEscrow()
+          .accounts({
+            payer: attacker.publicKey, // wrong signer
+            escrow: escrowPda,
+            vault: vaultPda,
+            merchantTokenAccount: merchantAta,
+          } as any)
+          .signers([attacker])
+          .rpc();
+        expect.fail("expected Unauthorized");
+      } catch (err) {
+        // has_one = payer @ Unauthorized
+        expectAnchorError(err, "Unauthorized");
+      }
+    });
+
+    it("non-payer attempts raise_dispute → Unauthorized", async () => {
+      const payerA = Keypair.generate();
+      const merchant = Keypair.generate();
+      const attacker = Keypair.generate();
+      await airdrop(provider.connection, payerA.publicKey);
+      await airdrop(provider.connection, attacker.publicKey);
+      const payerAta = await fundWalletWithUsdc(provider, mintAuthority, mint, payerA, 50);
+
+      const escrowId = nextEscrowId();
+      const [escrowPda] = findEscrowPda(program, payerA.publicKey, escrowId);
+
+      await program.methods
+        .initializeEscrow(escrowId, usdc(10), new BN(0))
+        .accounts({
+          payer: payerA.publicKey,
+          merchant: merchant.publicKey,
+          mint,
+          payerTokenAccount: payerAta,
+        } as any)
+        .signers([payerA])
+        .rpc();
+
+      try {
+        await program.methods
+          .raiseDispute("ipfs://nope", new BN(60))
+          .accounts({
+            payer: attacker.publicKey, // not the escrow's payer
+            escrow: escrowPda,
+          } as any)
+          .signers([attacker])
+          .rpc();
+        expect.fail("expected Unauthorized");
+      } catch (err) {
+        expectAnchorError(err, "Unauthorized");
+      }
+    });
+
+    it("cast_vote from a wallet without a Juror PDA → AccountNotInitialized", async () => {
+      const ctx = await setupDispute({ amountUsdc: 25, votingWindowSeconds: 120 });
+      const ghost = Keypair.generate();
+      await airdrop(provider.connection, ghost.publicKey);
+
+      try {
+        await program.methods
+          .castVote({ refund: {} })
+          .accounts({
+            authority: ghost.publicKey,
+            dispute: ctx.disputePda,
+          } as any)
+          .signers([ghost])
+          .rpc();
+        expect.fail("expected AccountNotInitialized for the missing Juror PDA");
+      } catch (err) {
+        // The Juror account constraint can't be satisfied — Anchor's auto-derived
+        // account fetcher fails with AccountNotInitialized before the handler runs.
+        expectAnchorError(err, "AccountNotInitialized");
+      }
+    });
+
+    it("the same juror cannot vote twice on the same dispute", async () => {
+      const ctx = await setupDispute({ amountUsdc: 40, votingWindowSeconds: 120 });
+      const j = await registerJuror();
+
+      await castVote(j, ctx.disputePda, "refund");
+
+      // Second vote attempts to `init` the same Vote PDA — Solana's runtime
+      // rejects creating an already-existing account. We pre-derive the PDA so
+      // we can confirm it really exists between the two attempts.
+      const [votePda] = findVotePda(program, ctx.disputePda, j.pda);
+      expect(await accountExists(provider.connection, votePda)).to.be.true;
+
+      try {
+        await castVote(j, ctx.disputePda, "release");
+        expect.fail("expected duplicate-vote attempt to fail");
+      } catch (err) {
+        // System program: account already in use. Anchor surfaces this as a
+        // raw transaction error, not a structured AnchorError code, so we
+        // match on the well-known message fragment.
+        const msg = err instanceof Error ? err.message : String(err);
+        expect(msg).to.match(/already in use|custom program error: 0x0/i);
+      }
+    });
+  });
 });
