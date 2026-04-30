@@ -596,4 +596,150 @@ describe("verdict", () => {
       }
     });
   });
+
+  // ---------- Reputation accrual ----------
+
+  describe("claim_juror_reward", () => {
+    it("majority-aligned juror gets reputation +1; dissenting juror does not", async () => {
+      const ctx = await setupDispute({ amountUsdc: 60, votingWindowSeconds: 120 });
+      const majA = await registerJuror();
+      const majB = await registerJuror();
+      const dissenter = await registerJuror();
+
+      // 2 refund + 1 release → outcome=Refund. majA/majB are the majority.
+      await castVote(majA, ctx.disputePda, "refund");
+      await castVote(majB, ctx.disputePda, "refund");
+      await castVote(dissenter, ctx.disputePda, "release");
+
+      await resolveDispute({
+        caller: ctx.payer,
+        payer: ctx.payer.publicKey,
+        payerAta: ctx.payerAta,
+        merchantAta: ctx.merchantAta,
+        escrowPda: ctx.escrowPda,
+        vaultPda: ctx.vaultPda,
+        disputePda: ctx.disputePda,
+      });
+
+      // Snapshot reputation pre-claim. cases_voted == 1 from the cast_vote.
+      const majAPre = await program.account.juror.fetch(majA.pda);
+      const dissenterPre = await program.account.juror.fetch(dissenter.pda);
+      expect(majAPre.reputation).to.equal(0);
+      expect(majAPre.casesVoted).to.equal(1);
+      expect(dissenterPre.reputation).to.equal(0);
+
+      const claim = async (j: { kp: Keypair; pda: PublicKey }) => {
+        const [votePda] = findVotePda(program, ctx.disputePda, j.pda);
+        await program.methods
+          .claimJurorReward()
+          .accounts({
+            authority: j.kp.publicKey,
+            juror: j.pda,
+            dispute: ctx.disputePda,
+            vote: votePda,
+          } as any)
+          .signers([j.kp])
+          .rpc({ commitment: "confirmed" });
+      };
+
+      await claim(majA);
+      await claim(majB);
+      await claim(dissenter);
+
+      const majAPost = await program.account.juror.fetch(majA.pda);
+      const majBPost = await program.account.juror.fetch(majB.pda);
+      const dissenterPost = await program.account.juror.fetch(dissenter.pda);
+      expect(majAPost.reputation).to.equal(1);
+      expect(majBPost.reputation).to.equal(1);
+      expect(dissenterPost.reputation).to.equal(0);
+
+      // Vote PDAs are closed by claim_juror_reward (rent → juror authority).
+      const [voteMajA] = findVotePda(program, ctx.disputePda, majA.pda);
+      const [voteDissenter] = findVotePda(program, ctx.disputePda, dissenter.pda);
+      expect(await accountExists(provider.connection, voteMajA)).to.be.false;
+      expect(await accountExists(provider.connection, voteDissenter)).to.be.false;
+    });
+  });
+
+  // ---------- Token conservation invariant across full lifecycle ----------
+
+  describe("math invariant", () => {
+    it("payer + merchant + vault is conserved at every step of a complete dispute lifecycle", async () => {
+      const payer = Keypair.generate();
+      const merchant = Keypair.generate();
+      await airdrop(provider.connection, payer.publicKey);
+      const payerAta = await fundWalletWithUsdc(provider, mintAuthority, mint, payer, 100);
+      const merchantAta = await createEmptyAta(provider, mintAuthority, mint, merchant.publicKey);
+
+      const escrowId = nextEscrowId();
+      const [escrowPda] = findEscrowPda(program, payer.publicKey, escrowId);
+      const [vaultPda] = findVaultPda(program, escrowPda);
+      const [disputePda] = findDisputePda(program, escrowPda);
+      const amount = usdc(80);
+
+      const initialPayer = await tokenBalance(provider.connection, payerAta);
+      const initialMerchant = await tokenBalance(provider.connection, merchantAta);
+      const initialTotal = initialPayer + initialMerchant;
+
+      // Snapshot helper: returns (payer + merchant + vault). The vault account
+      // doesn't exist before init or after close — tokenBalance returns 0n in
+      // those cases, which is the conserved-quantity-correct value.
+      const total = async (): Promise<bigint> => {
+        const p = await tokenBalance(provider.connection, payerAta);
+        const m = await tokenBalance(provider.connection, merchantAta);
+        const v = await tokenBalance(provider.connection, vaultPda);
+        return p + m + v;
+      };
+
+      expect(await total()).to.equal(initialTotal); // pre-init
+
+      await program.methods
+        .initializeEscrow(escrowId, amount, new BN(0))
+        .accounts({
+          payer: payer.publicKey,
+          merchant: merchant.publicKey,
+          mint,
+          payerTokenAccount: payerAta,
+        } as any)
+        .signers([payer])
+        .rpc();
+      expect(await total()).to.equal(initialTotal); // post-init
+
+      await program.methods
+        .raiseDispute("ipfs://lifecycle", new BN(120))
+        .accounts({ payer: payer.publicKey, escrow: escrowPda } as any)
+        .signers([payer])
+        .rpc();
+      expect(await total()).to.equal(initialTotal); // post-raise_dispute
+
+      const j1 = await registerJuror();
+      const j2 = await registerJuror();
+      const j3 = await registerJuror();
+
+      await castVote(j1, disputePda, "refund");
+      expect(await total()).to.equal(initialTotal); // post-vote 1
+
+      await castVote(j2, disputePda, "release");
+      expect(await total()).to.equal(initialTotal); // post-vote 2
+
+      await castVote(j3, disputePda, "refund");
+      expect(await total()).to.equal(initialTotal); // post-vote 3 — panel full
+
+      await resolveDispute({
+        caller: payer,
+        payer: payer.publicKey,
+        payerAta,
+        merchantAta,
+        escrowPda,
+        vaultPda,
+        disputePda,
+      });
+      // Outcome is Refund (2-1). Vault is closed → no tokens lost or created.
+      expect(await total()).to.equal(initialTotal); // post-resolve
+      const finalPayer = await tokenBalance(provider.connection, payerAta);
+      const finalMerchant = await tokenBalance(provider.connection, merchantAta);
+      expect(finalPayer).to.equal(initialPayer);
+      expect(finalMerchant).to.equal(0n);
+    });
+  });
 });
