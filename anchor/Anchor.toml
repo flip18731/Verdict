@@ -2,17 +2,16 @@
 
 [features]
 resolution = true
-seeds = true
 skip-lint = false
 
 [programs.localnet]
-verdict = "F6r87m6HEj3Seh9yBmghkPfQBSk1i8mNAMThYWkmbqvy"
+verdict = "5L1XQWLcmYuKVEx1B8igHJahzhhCroANStoP9WGg5EKV"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

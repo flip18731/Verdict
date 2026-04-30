@@ -14,15 +14,25 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
+# Anchor's #[program] macro emits cfg(feature = "...") checks against these
+# names. Declaring them as empty no-op features is the canonical Anchor pattern
+# for keeping `unexpected_cfgs` warnings out of an otherwise-clean build.
+anchor-debug = []
+custom-heap = []
+custom-panic = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
+[lints.rust]
+# anchor-lang's runtime emits cfg(target_os = "solana") checks; the host build
+# (cargo metadata, IDL extraction) doesn't have that target and otherwise warns
+# on every macro-expansion site. Whitelist the value rather than blanket-allow.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+
 [dependencies]
-anchor-lang = "=0.30.1"
-anchor-spl = { version = "=0.30.1", default-features = false, features = ["token", "associated_token"] }
-# Transitive pins. Several of solana-program 1.18.x's recursive deps now have
-# new releases that require Cargo's `edition2024` feature, which platform-tools
-# cargo (1.75) and host cargo (1.77.2) cannot parse. We pin them to the last
-# pre-edition2024 release that still satisfies the upstream version reqs.
-blake3 = "=1.8.3"
-proc-macro-crate = "=3.3.0"
-toml_edit = "=0.22.27"
+anchor-lang = "=0.31.1"
+# Runtime CPI uses only the classic SPL Token program (per spec). We still
+# enable the token_2022 feature on anchor-spl because Anchor 0.31.1's
+# `#[derive(Accounts)]` macro expansion references `anchor_spl::token_interface`
+# unconditionally, and that module is gated behind this feature. Compiling it
+# in adds bytes but no behavior — none of our instructions reference it.
+anchor-spl = { version = "=0.31.1", default-features = false, features = ["token", "associated_token", "token_2022", "token_2022_extensions"] }
