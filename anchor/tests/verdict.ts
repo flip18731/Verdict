@@ -505,5 +505,95 @@ describe("verdict", () => {
         expect(msg).to.match(/already in use|custom program error: 0x0/i);
       }
     });
+
+    it("a 4th juror cannot vote once the panel of 3 is full → PanelFull", async () => {
+      const ctx = await setupDispute({ amountUsdc: 35, votingWindowSeconds: 120 });
+      const j1 = await registerJuror();
+      const j2 = await registerJuror();
+      const j3 = await registerJuror();
+      const j4 = await registerJuror();
+      await castVote(j1, ctx.disputePda, "refund");
+      await castVote(j2, ctx.disputePda, "release");
+      await castVote(j3, ctx.disputePda, "refund");
+
+      const dispute = await program.account.dispute.fetch(ctx.disputePda);
+      expect(dispute.jurorsVoted).to.equal(3);
+      expect(dispute.jurorsSeated).to.equal(3);
+
+      try {
+        await castVote(j4, ctx.disputePda, "release");
+        expect.fail("expected PanelFull");
+      } catch (err) {
+        expectAnchorError(err, "PanelFull");
+      }
+    });
+
+    it("resolve_dispute called before window ends and panel not full → VotingNotEnded", async () => {
+      const ctx = await setupDispute({ amountUsdc: 20, votingWindowSeconds: 120 });
+      // Long window, only 1 vote in → neither condition (now >= ends_at OR jurors_voted == 3) holds.
+      const j1 = await registerJuror();
+      await castVote(j1, ctx.disputePda, "refund");
+
+      try {
+        await resolveDispute({
+          caller: ctx.payer,
+          payer: ctx.payer.publicKey,
+          payerAta: ctx.payerAta,
+          merchantAta: ctx.merchantAta,
+          escrowPda: ctx.escrowPda,
+          vaultPda: ctx.vaultPda,
+          disputePda: ctx.disputePda,
+        });
+        expect.fail("expected VotingNotEnded");
+      } catch (err) {
+        expectAnchorError(err, "VotingNotEnded");
+      }
+    });
+
+    it("raise_dispute called twice on the same escrow → fails on duplicate Dispute PDA", async () => {
+      // After the first raise_dispute, the Dispute PDA at
+      // [b"dispute", escrow] exists. Anchor's `init` constraint calls
+      // SystemProgram::allocate during the second attempt, which rejects
+      // "account already in use" before any of our custom constraints
+      // (EscrowNotFunded / DisputeAlreadyExists) can fire. Spec acknowledged
+      // up-front that either path is acceptable; this is what the actual
+      // code path produces.
+      const payerA = Keypair.generate();
+      const merchant = Keypair.generate();
+      await airdrop(provider.connection, payerA.publicKey);
+      const payerAta = await fundWalletWithUsdc(provider, mintAuthority, mint, payerA, 50);
+
+      const escrowId = nextEscrowId();
+      const [escrowPda] = findEscrowPda(program, payerA.publicKey, escrowId);
+
+      await program.methods
+        .initializeEscrow(escrowId, usdc(10), new BN(0))
+        .accounts({
+          payer: payerA.publicKey,
+          merchant: merchant.publicKey,
+          mint,
+          payerTokenAccount: payerAta,
+        } as any)
+        .signers([payerA])
+        .rpc();
+
+      await program.methods
+        .raiseDispute("ipfs://first", new BN(120))
+        .accounts({ payer: payerA.publicKey, escrow: escrowPda } as any)
+        .signers([payerA])
+        .rpc();
+
+      try {
+        await program.methods
+          .raiseDispute("ipfs://second", new BN(120))
+          .accounts({ payer: payerA.publicKey, escrow: escrowPda } as any)
+          .signers([payerA])
+          .rpc();
+        expect.fail("expected duplicate-dispute attempt to fail");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        expect(msg).to.match(/already in use|custom program error: 0x0/i);
+      }
+    });
   });
 });
