@@ -7,7 +7,14 @@
     "build:sdk": "pnpm --filter verdict-sdk build",
     "test:sdk": "pnpm --filter verdict-sdk test",
     "dev:app": "pnpm --filter verdict-app dev",
-    "build:app": "pnpm --filter verdict-app build"
+    "build:app": "pnpm --filter verdict-app build",
+    "setup-toolchain": "bash scripts/setup-toolchain.sh",
+    "setup-demo": "tsx scripts/setup-demo.ts"
+  },
+  "devDependencies": {
+    "@solana/spl-token": "0.4.8",
+    "@solana/web3.js": "1.95.3",
+    "tsx": "4.16.2"
   },
   "packageManager": "pnpm@10.33.0"
 }
