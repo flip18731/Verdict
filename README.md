@@ -1,19 +1,10 @@
 # Verdict
 
-> The dispute layer agentic commerce forgot to build.
+> Payments fail between autonomous agents all the time — no chargebacks, no support tickets, no court of appeals. Verdict is the missing layer: an on-chain arbitration primitive for Solana that holds funds in program-controlled escrow, anchors evidence on-chain, runs a three-juror panel vote in seconds, and settles the escrow atomically.
 
-Verdict is an on-chain arbitration primitive for AI-agent commerce on Solana.
-Autonomous agents are about to spend trillions on each other's services and
-there is no settled-on-chain answer for what to do when one of them delivers
-garbage. Verdict provides the missing layer: payments live in
-program-controlled escrow, evidence is anchored on-chain, three-juror panels
-vote in seconds, and outcomes settle the escrow atomically — refund, release,
-or default to release on a tie. Jurors who vote with the majority earn
-reputation, claim-style.
+Autonomous agents are about to spend trillions on each other's services. Verdict provides what agentic commerce forgot to build: a binding, trust-minimized dispute layer. A payer opens an escrow, a merchant delivers, a juror panel rules if delivery is contested — the program pays the winner without human intermediaries. Jurors who vote with the majority earn on-chain reputation, claim-style.
 
-This repository is the hackathon MVP: a complete vertical slice from the
-on-chain Anchor program through a typed TypeScript SDK to a Next.js 14
-frontend.
+This repository is the hackathon MVP: a complete vertical slice from the on-chain Anchor program through a typed TypeScript SDK to a Next.js 14 frontend.
 
 ---
 
@@ -104,36 +95,81 @@ an already-swapped install is a no-op).
 
 ## Bring-up
 
-A teammate cloning fresh should reach a working demo in under ten minutes
-with these steps:
+A teammate cloning fresh should reach a working demo in under ten minutes.
+Read each step before running it — a few have "you should see" notes that
+confirm the step worked.
 
 ```bash
-# 0. one-time prerequisites (skip if already installed)
+# Prerequisites — skip anything already installed.
+# Rust (rustup): https://rustup.rs/
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"            # or open a new shell
+
+# Node 22+ and pnpm 10:
+# Node: https://nodejs.org/  or  nvm/fnm/volta
+npm install -g pnpm@10
+
+# Agave (Solana) CLI — installs to ~/.local/share/solana/install/:
 sh -c "$(curl -sSfL https://release.anza.xyz/v2.3.13/install)"
+export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+# Add that export to ~/.bashrc / ~/.zshrc so it survives new shells.
+solana --version   # → solana-cli 2.3.13 ...
+
+# Anchor via avm (this takes a few minutes to compile):
 cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
 avm install 0.31.1 && avm use 0.31.1
+anchor --version   # → anchor-cli 0.31.1
 
-# 1. install workspace deps + swap platform-tools
-pnpm install
-pnpm setup-toolchain      # one-time per machine
-
-# 2. start a fresh validator (in a dedicated terminal — leave it running)
-solana-test-validator --reset
-
-# 3. build + deploy program
-cd anchor && anchor build && anchor deploy
-
-# 4. seed demo data (creates test mint, 5 wallets, registers 3 jurors,
-#    runs an end-to-end smoke walk, writes app/.env.local)
-cd .. && pnpm tsx scripts/setup-demo.ts
-
-# 5. start frontend
-cd app && pnpm dev
+# Default keypair for anchor deploy (skip if you already have ~/.config/solana/id.json):
+solana-keygen new --no-passphrase
 ```
 
-Then open `http://localhost:3000` and import the keypairs printed by step 4
-into your wallet — Phantom or Solflare both accept `solana-keygen`-formatted
-JSON via "Import private key → Paste JSON array".
+```bash
+# 1. Install workspace deps + swap platform-tools
+pnpm install
+pnpm setup-toolchain      # one-time per machine; no-op if already done
+# You should see: "[setup-toolchain] platform-tools v1.54 already installed" or a download.
+
+# 2. Point the CLI at localnet, then start a fresh validator
+#    (leave this terminal running — the validator must stay up for steps 3-5)
+solana config set --url localhost
+solana-test-validator --reset
+# You should see: "Ledger location: test-ledger" and a stream of slot numbers.
+
+# 3. Build + deploy program (run in a second terminal tab)
+cd anchor && anchor build && anchor deploy
+# You should see: "Program Id: 5L1XQWLcmYuKVEx1B8igHJahzhhCroANStoP9WGg5EKV"
+
+# 4. Seed demo data
+#    Creates 5 wallets in scripts/demo-wallets/, mints test USDC, registers 3 jurors,
+#    runs a full escrow→dispute→vote→resolve lifecycle, and writes app/.env.local.
+cd .. && pnpm tsx scripts/setup-demo.ts
+# You should see: "===== DEMO SUMMARY =====" with wallet addresses and balances.
+
+# 5. Start frontend
+cd app && pnpm dev
+# Open http://localhost:3000
+```
+
+### Import wallets into Phantom or Solflare
+
+Both wallets accept `solana-keygen`-formatted JSON via
+**Settings → Import wallet → Paste JSON array** (Phantom) or
+**Add account → Import private key → JSON array** (Solflare).
+
+The five demo keypair files are printed in the DEMO SUMMARY output at step 4:
+
+```
+scripts/demo-wallets/agent.json
+scripts/demo-wallets/merchant.json
+scripts/demo-wallets/juror-a.json
+scripts/demo-wallets/juror-b.json
+scripts/demo-wallets/juror-c.json
+```
+
+Import at least `agent.json` and `merchant.json` into separate browser profiles
+(or use tab-isolated wallet sessions) to walk the happy path:
+agent opens escrow → merchant receives → agent raises dispute → jurors vote.
 
 The demo script is also wired into Anchor:
 
@@ -197,7 +233,7 @@ verdict/
     src/{program,pdas,instructions,shapes}.ts
     test/smoke.test.ts
   app/                          Next.js 14 frontend (verdict-app)
-    app/{,/escrows,/disputes,/jurors/me}/page.tsx
+    app/{,/escrows,/escrows/new,/disputes,/jurors/me}/page.tsx
     components/{Header,NetworkBanner,StatusBadge,providers/}.tsx
     lib/{config,sendTx,useVerdictProgram,queries}.ts
   scripts/
