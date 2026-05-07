@@ -1,24 +1,31 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
+import { Cormorant_Garamond, Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { Providers } from "@/components/providers/Providers";
-import { Header } from "@/components/Header";
-import { NetworkBanner } from "@/components/NetworkBanner";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-fraunces",
   display: "swap",
 });
-const geistSans = Inter({
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  variable: "--font-cormorant",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
-const geistMono = JetBrains_Mono({
+const mono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-mono",
+  weight: ["300", "400", "500", "600"],
+  display: "swap",
+});
+// Geist is unavailable in next/font/google for Next 14.2.35 — Inter is the
+// closest geometric sans substitute and ships in the same loader.
+const geist = Inter({
+  subsets: ["latin"],
+  variable: "--font-geist",
   display: "swap",
 });
 
@@ -30,12 +37,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-screen bg-cream-50 text-indigo-900 antialiased">
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${cormorant.variable} ${mono.variable} ${geist.variable}`}
+    >
+      <body>
         <Providers>
-          <NetworkBanner />
-          <Header />
-          <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
+          <div className="v-atmos" aria-hidden />
+          <div className="v-noise" aria-hidden />
+          {children}
         </Providers>
       </body>
     </html>
