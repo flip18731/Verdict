@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ConfirmModal from "./ConfirmModal";
 
 type VoteChoice = "refund" | "release";
 
@@ -26,7 +27,9 @@ interface Props {
 
 export default function DisputeDetailView({ disputeId }: Props) {
   const [voted, setVoted] = useState<VoteChoice | null>(null);
+  const [pendingChoice, setPendingChoice] = useState<VoteChoice | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [confirmingResolve, setConfirmingResolve] = useState(false);
   const [resolved, setResolved] = useState(false);
   const [jurors, setJurors] = useState<JurorRow[]>(INITIAL_JURORS);
   const [secondsLeft, setSecondsLeft] = useState(3 * 3600 + 42 * 60 + 17);
@@ -47,14 +50,27 @@ export default function DisputeDetailView({ disputeId }: Props) {
 
   const votedCount = jurors.filter((j) => j.vote !== null).length;
 
-  const onVote = (c: VoteChoice) => {
+  const requestVote = (c: VoteChoice) => {
     if (voted || resolving || resolved) return;
-    setVoted(c);
-    setJurors((prev) => prev.map((j) => (j.you ? { ...j, vote: c } : j)));
+    setPendingChoice(c);
   };
 
-  const onResolve = () => {
+  const confirmVote = () => {
+    if (!pendingChoice) return;
+    setVoted(pendingChoice);
+    setJurors((prev) =>
+      prev.map((j) => (j.you ? { ...j, vote: pendingChoice } : j)),
+    );
+    setPendingChoice(null);
+  };
+
+  const requestResolve = () => {
     if (!voted || resolving || resolved) return;
+    setConfirmingResolve(true);
+  };
+
+  const confirmResolve = () => {
+    setConfirmingResolve(false);
     setResolving(true);
     setTimeout(() => {
       setResolving(false);
@@ -152,58 +168,98 @@ export default function DisputeDetailView({ disputeId }: Props) {
             </div>
           </div>
 
-          {/* Vote */}
-          <div className="vote-card">
-            <div className="vote-card-header">
-              <div className="vote-card-title">Cast your vote</div>
-              <div className="vote-card-sub">
-                Review the evidence above before voting. Your decision is final once submitted.
-              </div>
+          {/* Vote — large adjacent buttons, no card header (per design audit) */}
+          {!resolved ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <button
+                className="vote-btn refund"
+                style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  boxShadow: "var(--shadow-sm)",
+                  padding: "20px 24px",
+                  textAlign: "left",
+                  cursor:
+                    voted || resolving ? "not-allowed" : "pointer",
+                  opacity: voted && voted !== "refund" ? 0.4 : 1,
+                }}
+                onClick={() => requestVote("refund")}
+                disabled={voted !== null || resolving}
+              >
+                <div className="vote-btn-label">↩ Refund petitioner</div>
+                <div className="vote-btn-desc">Return $2,500 USDC to payer</div>
+              </button>
+              <button
+                className="vote-btn release"
+                style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  boxShadow: "var(--shadow-sm)",
+                  padding: "20px 24px",
+                  textAlign: "left",
+                  cursor:
+                    voted || resolving ? "not-allowed" : "pointer",
+                  opacity: voted && voted !== "release" ? 0.4 : 1,
+                }}
+                onClick={() => requestVote("release")}
+                disabled={voted !== null || resolving}
+              >
+                <div className="vote-btn-label">↗ Release to merchant</div>
+                <div className="vote-btn-desc">Deliver $2,500 USDC to respondent</div>
+              </button>
             </div>
+          ) : null}
 
-            {voted === null ? (
-              <div className="vote-actions">
-                <button
-                  className="vote-btn refund"
-                  onClick={() => onVote("refund")}
-                  disabled={resolving || resolved}
-                >
-                  <div className="vote-btn-label">↩ Refund petitioner</div>
-                  <div className="vote-btn-desc">Return $2,500 USDC to payer</div>
-                </button>
-                <button
-                  className="vote-btn release"
-                  onClick={() => onVote("release")}
-                  disabled={resolving || resolved}
-                >
-                  <div className="vote-btn-label">↗ Release to merchant</div>
-                  <div className="vote-btn-desc">Deliver $2,500 USDC to respondent</div>
-                </button>
+          {voted !== null && !resolved ? (
+            <div
+              className="vote-resolve"
+              style={{
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                marginBottom: 16,
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <div className="voted-state">
+                You voted —{" "}
+                <strong style={{ color: voted === "refund" ? "var(--gold)" : "var(--blue)" }}>
+                  {voted === "refund" ? "Refund petitioner" : "Release to merchant"}
+                </strong>
               </div>
-            ) : null}
+              <button
+                className="btn btn-primary"
+                disabled={resolving}
+                onClick={requestResolve}
+              >
+                {resolving ? "Sealing…" : "Render verdict"}
+              </button>
+            </div>
+          ) : null}
 
-            {voted !== null && !resolved ? (
-              <div className="vote-resolve">
-                <div className="voted-state">
-                  You voted —{" "}
-                  <strong style={{ color: voted === "refund" ? "var(--gold)" : "var(--blue)" }}>
-                    {voted === "refund" ? "Refund petitioner" : "Release to merchant"}
-                  </strong>
-                </div>
-                <button className="btn btn-primary" disabled={resolving} onClick={onResolve}>
-                  {resolving ? "Sealing…" : "Render verdict"}
-                </button>
-              </div>
-            ) : null}
-
-            {resolved ? (
-              <div className="verdict-announcement">
-                <div className="verdict-eyebrow">⚖ Verdict rendered</div>
-                <div className="verdict-text">{verdictText}</div>
-                <div className="verdict-sub">{verdictSub}</div>
-              </div>
-            ) : null}
-          </div>
+          {resolved ? (
+            <div
+              className="verdict-announcement"
+              style={{
+                borderRadius: 12,
+                border: "1px solid var(--gold-border)",
+                marginBottom: 16,
+              }}
+            >
+              <div className="verdict-eyebrow">⚖ Verdict rendered</div>
+              <div className="verdict-text">{verdictText}</div>
+              <div className="verdict-sub">{verdictSub}</div>
+            </div>
+          ) : null}
 
           {/* Jurors */}
           <div className="juror-card">
@@ -246,44 +302,46 @@ export default function DisputeDetailView({ disputeId }: Props) {
           <div className="side-section">
             <div className="side-label">Case timeline</div>
             <Timeline
-              items={[
-                voted
-                  ? {
-                      time: "now",
-                      text: (
-                        <>
-                          You voted <strong>{voted}</strong>
-                        </>
-                      ),
-                      sig: "sig 4xKpT…9wRq",
-                    }
-                  : null,
-                {
-                  time: voted ? "1s" : "now",
-                  text: (
-                    <>
-                      <strong>Bq4T</strong> voted refund
-                    </>
-                  ),
-                  sig: "sig 8vRjN2…pXq1",
-                },
-                { time: "3m", text: <>Panel of 3 jurors seated</>, sig: "sig Hp4mLk…2nRq" },
-                { time: "5m", text: <>Evidence pinned to IPFS</>, sig: "sig vKp9wR…3mNp" },
-                {
-                  time: "5m",
-                  text: (
-                    <>
-                      Dispute {disputeId} opened by <strong>5xKpT</strong>
-                    </>
-                  ),
-                  sig: "sig 3xKpT9…mNq7",
-                },
-                {
-                  time: "18m",
-                  text: <>Escrow funded · $2,500 USDC</>,
-                  sig: "sig Wm3Lk7…4xQp",
-                },
-              ].filter(Boolean) as TimelineItem[]}
+              items={
+                [
+                  voted
+                    ? {
+                        time: "now",
+                        text: (
+                          <>
+                            You voted <strong>{voted}</strong>
+                          </>
+                        ),
+                        sig: "sig 4xKpT…9wRq",
+                      }
+                    : null,
+                  {
+                    time: voted ? "1s" : "now",
+                    text: (
+                      <>
+                        <strong>Bq4T</strong> voted refund
+                      </>
+                    ),
+                    sig: "sig 8vRjN2…pXq1",
+                  },
+                  { time: "3m", text: <>Panel of 3 jurors seated</>, sig: "sig Hp4mLk…2nRq" },
+                  { time: "5m", text: <>Evidence pinned to IPFS</>, sig: "sig vKp9wR…3mNp" },
+                  {
+                    time: "5m",
+                    text: (
+                      <>
+                        Dispute {disputeId} opened by <strong>5xKpT</strong>
+                      </>
+                    ),
+                    sig: "sig 3xKpT9…mNq7",
+                  },
+                  {
+                    time: "18m",
+                    text: <>Escrow funded · $2,500 USDC</>,
+                    sig: "sig Wm3Lk7…4xQp",
+                  },
+                ].filter(Boolean) as TimelineItem[]
+              }
             />
           </div>
 
@@ -298,6 +356,48 @@ export default function DisputeDetailView({ disputeId }: Props) {
           </div>
         </aside>
       </div>
+
+      <ConfirmModal
+        open={pendingChoice !== null}
+        title={`Confirm vote: ${pendingChoice ?? ""}`}
+        body={
+          <>
+            This will permanently record your vote on Solana — your decision
+            cannot be changed. If you vote with the majority, you earn{" "}
+            <strong>+1 reputation</strong>.{" "}
+            {pendingChoice === "refund" ? (
+              <>
+                A <strong>refund</strong> verdict returns $2,500 USDC to the
+                petitioner.
+              </>
+            ) : (
+              <>
+                A <strong>release</strong> verdict delivers $2,500 USDC to the
+                respondent.
+              </>
+            )}
+          </>
+        }
+        confirmLabel={`Confirm ${pendingChoice ?? ""}`}
+        onConfirm={confirmVote}
+        onCancel={() => setPendingChoice(null)}
+      />
+
+      <ConfirmModal
+        open={confirmingResolve}
+        title="Render the verdict"
+        body={
+          <>
+            This tallies the panel&rsquo;s votes and atomically settles the
+            escrow on-chain. Once rendered, the verdict is final — there is no
+            appeal. Both parties have agreed to the panel&rsquo;s decision at
+            escrow creation.
+          </>
+        }
+        confirmLabel="Render verdict"
+        onConfirm={confirmResolve}
+        onCancel={() => setConfirmingResolve(false)}
+      />
     </>
   );
 }

@@ -1,7 +1,7 @@
-import DisputesListView from "@/components/DisputesListView";
+import LandingView from "@/components/LandingView";
 
 export default function Home() {
-  return <DisputesListView />;
+  return <LandingView />;
 }
 
 export const dynamic = "force-dynamic";

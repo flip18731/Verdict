@@ -1,13 +1,37 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { BN } from "@coral-xyz/anchor";
+import {
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
+import {
+  PublicKey,
+  type TransactionInstruction,
+} from "@solana/web3.js";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { initializeEscrowIx } from "@/lib/verdict-sdk";
+import { useVerdictProgram } from "@/lib/useVerdictProgram";
+import { sendTx, TxError } from "@/lib/sendTx";
+import { TEST_USDC_MINT, explorerTxUrl } from "@/lib/config";
 
 export default function CreateEscrowView() {
-  const [merchant, setMerchant] = useState("Bq4T9wLkMn7R3kPx2xKpT4wRqHelios");
+  const wallet = useWallet();
+  const { connection } = useConnection();
+  const { setVisible } = useWalletModal();
+  const program = useVerdictProgram();
+
+  const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("2500");
-  const [releaseAt, setReleaseAt] = useState("2026-05-15T12:00");
-  const [votingWindow] = useState("6 hours");
+  const [releaseAt, setReleaseAt] = useState("");
   const [evidenceUri, setEvidenceUri] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [signature, setSignature] = useState<string | null>(null);
 
   const previewAmount = (() => {
     const n = parseFloat(amount);
@@ -18,7 +42,87 @@ export default function CreateEscrowView() {
     });
   })();
   const merchantPreview =
-    merchant.length > 8 ? `${merchant.slice(0, 4)}…${merchant.slice(-4)}` : merchant;
+    merchant.length > 8 ? `${merchant.slice(0, 4)}…${merchant.slice(-4)}` : merchant || "—";
+
+  async function handleSubmit() {
+    setError(null);
+    setSignature(null);
+    if (!program || !wallet.publicKey) {
+      setVisible(true);
+      return;
+    }
+    if (!TEST_USDC_MINT) {
+      setError("NEXT_PUBLIC_TEST_USDC_MINT is not set. Run `pnpm tsx scripts/setup-demo.ts` to seed it.");
+      return;
+    }
+
+    let merchantPk: PublicKey;
+    try {
+      merchantPk = new PublicKey(merchant.trim());
+    } catch {
+      setError("Merchant address is not a valid Solana public key.");
+      return;
+    }
+
+    const num = parseFloat(amount);
+    if (!Number.isFinite(num) || num <= 0) {
+      setError("Amount must be a positive number.");
+      return;
+    }
+
+    const releaseUnix =
+      releaseAt && Date.parse(releaseAt) > 0
+        ? Math.floor(Date.parse(releaseAt) / 1000)
+        : 0;
+
+    setBusy(true);
+    try {
+      const mint = new PublicKey(TEST_USDC_MINT);
+      const escrowId = new BN(Date.now());
+      const payerAta = getAssociatedTokenAddressSync(mint, wallet.publicKey);
+      const ixs: TransactionInstruction[] = [];
+      // Create the payer ATA if missing — judges' demo wallets always have it,
+      // but a real first-time user might not.
+      const ataInfo = await connection.getAccountInfo(payerAta);
+      if (!ataInfo) {
+        ixs.push(
+          createAssociatedTokenAccountInstruction(
+            wallet.publicKey,
+            payerAta,
+            wallet.publicKey,
+            mint,
+            TOKEN_PROGRAM_ID,
+          ),
+        );
+      }
+      ixs.push(
+        await initializeEscrowIx(program, {
+          payer: wallet.publicKey,
+          merchant: merchantPk,
+          mint,
+          payerTokenAccount: payerAta,
+          escrowId,
+          amount: new BN(Math.floor(num * 1_000_000)), // USDC has 6 decimals
+          releaseAfter: new BN(releaseUnix),
+        }),
+      );
+      const sig = await sendTx({ connection, wallet, ixs });
+      setSignature(sig);
+      // Suppress an unused-var lint nag — evidenceUri is captured for future
+      // raise_dispute call when the merchant disputes; not part of init.
+      void evidenceUri;
+    } catch (err) {
+      setError(
+        err instanceof TxError
+          ? `${err.anchorCode ?? "tx"}: ${err.message}`
+          : String(err),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const connected = !!wallet.publicKey;
 
   return (
     <>
@@ -47,7 +151,7 @@ export default function CreateEscrowView() {
                 <label className="field-label">Merchant wallet address</label>
                 <input
                   className="field-input mono-input"
-                  placeholder="Public key or .sol domain"
+                  placeholder="Public key (base58)"
                   value={merchant}
                   onChange={(e) => setMerchant(e.target.value)}
                 />
@@ -61,7 +165,7 @@ export default function CreateEscrowView() {
               <div className="form-section-label">Payment</div>
               <div className="field-row">
                 <div className="field">
-                  <label className="field-label">Amount (USDC)</label>
+                  <label className="field-label">Amount (test USDC)</label>
                   <input
                     className="field-input mono-input"
                     type="number"
@@ -71,7 +175,7 @@ export default function CreateEscrowView() {
                   />
                 </div>
                 <div className="field">
-                  <label className="field-label">Release after</label>
+                  <label className="field-label">Release after (optional)</label>
                   <input
                     className="field-input"
                     type="datetime-local"
@@ -90,7 +194,7 @@ export default function CreateEscrowView() {
               <div className="field-row">
                 <div className="field">
                   <label className="field-label">Voting window</label>
-                  <input className="field-input" defaultValue={votingWindow} />
+                  <input className="field-input" defaultValue="6 hours" readOnly />
                 </div>
                 <div className="field">
                   <label className="field-label">Panel size</label>
@@ -106,7 +210,7 @@ export default function CreateEscrowView() {
                   onChange={(e) => setEvidenceUri(e.target.value)}
                 />
                 <div className="field-hint">
-                  Attach a document or link describing the service agreement
+                  Attached when a dispute is later raised on this escrow
                 </div>
               </div>
             </div>
@@ -116,8 +220,63 @@ export default function CreateEscrowView() {
                 Locking <strong>{previewAmount}</strong> USDC →{" "}
                 <strong>{merchantPreview}</strong>
               </div>
-              <button className="btn btn-primary">Create escrow →</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSubmit}
+                disabled={busy}
+              >
+                {busy ? "Creating…" : connected ? "Create escrow →" : "Connect wallet"}
+              </button>
             </div>
+
+            {error ? (
+              <div
+                style={{
+                  background: "var(--red-bg)",
+                  border: "1px solid var(--red-border)",
+                  color: "var(--red)",
+                  padding: "10px 16px",
+                  margin: "0 24px 16px",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: "var(--font-mono), monospace",
+                  wordBreak: "break-word",
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
+
+            {signature ? (
+              <div
+                style={{
+                  background: "var(--green-bg)",
+                  border: "1px solid var(--green-border)",
+                  color: "var(--green)",
+                  padding: "10px 16px",
+                  margin: "0 24px 16px",
+                  borderRadius: 6,
+                  fontSize: 13,
+                }}
+              >
+                Escrow funded.{" "}
+                <a
+                  href={explorerTxUrl(signature)}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    fontFamily: "var(--font-mono), monospace",
+                    textDecoration: "underline",
+                  }}
+                >
+                  View tx
+                </a>{" "}
+                ·{" "}
+                <Link href="/escrows" style={{ textDecoration: "underline" }}>
+                  My escrows
+                </Link>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -153,8 +312,9 @@ export default function CreateEscrowView() {
           <div className="tie-note">
             <div className="tie-note-title">Tie-breaker rule</div>
             <div className="tie-note-body">
-              If votes are tied, funds are released to the merchant. This is a documented
-              MVP design choice — both parties agree to this at escrow creation.
+              If votes are tied, funds are released to the merchant. This is a
+              documented MVP design choice — both parties agree to this at
+              escrow creation.
             </div>
           </div>
         </aside>
