@@ -14,6 +14,7 @@ import {
 } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { initializeEscrowIx } from "@/lib/verdict-sdk";
 import { useVerdictProgram } from "@/lib/useVerdictProgram";
 import { sendTx, TxError } from "@/lib/sendTx";
@@ -24,6 +25,7 @@ export default function CreateEscrowView() {
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
   const program = useVerdictProgram();
+  const qc = useQueryClient();
 
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("2500");
@@ -108,6 +110,7 @@ export default function CreateEscrowView() {
       );
       const sig = await sendTx({ connection, wallet, ixs });
       setSignature(sig);
+      await qc.invalidateQueries({ queryKey: ["escrows"] });
       // Suppress an unused-var lint nag — evidenceUri is captured for future
       // raise_dispute call when the merchant disputes; not part of init.
       void evidenceUri;

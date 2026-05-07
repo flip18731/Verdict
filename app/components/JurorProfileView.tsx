@@ -4,10 +4,15 @@ import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { useJurorForWallet } from "@/lib/queries";
+import { useJurorForWallet, useResolvedDisputes } from "@/lib/queries";
 import { useVerdictProgram } from "@/lib/useVerdictProgram";
 import { sendTx, TxError } from "@/lib/sendTx";
-import { registerJurorIx } from "@/lib/verdict-sdk";
+import {
+  claimJurorRewardIx,
+  findJurorPda,
+  findVotePda,
+  registerJurorIx,
+} from "@/lib/verdict-sdk";
 
 interface CaseRow {
   id: string;
@@ -35,9 +40,12 @@ export default function JurorProfileView() {
   const program = useVerdictProgram();
   const qc = useQueryClient();
   const juror = useJurorForWallet(wallet.publicKey ?? null);
+  const resolved = useResolvedDisputes();
 
   const [registering, setRegistering] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const connected = !!wallet.publicKey;
   const isRegistered = !!juror.data?.account;
@@ -47,6 +55,7 @@ export default function JurorProfileView() {
   async function handleRegister() {
     if (!program || !wallet.publicKey) return;
     setError(null);
+    setInfo(null);
     setRegistering(true);
     try {
       const ix = await registerJurorIx(program, wallet.publicKey);
@@ -60,6 +69,57 @@ export default function JurorProfileView() {
       );
     } finally {
       setRegistering(false);
+    }
+  }
+
+  // Walk every resolved dispute, look up the user's Vote PDA, and submit a
+  // claim_juror_reward for each one that exists. Each claim is its own tx —
+  // claim is idempotent-safe (the program closes the Vote PDA on success, so
+  // a second call fails benignly).
+  async function handleClaimAll() {
+    if (!program || !wallet.publicKey || !resolved.data) return;
+    setError(null);
+    setInfo(null);
+    setClaiming(true);
+    let successes = 0;
+    try {
+      const [jurorPda] = findJurorPda(program.programId, wallet.publicKey);
+      for (const d of resolved.data) {
+        // Vote PDA is keyed by (dispute, juror_pda) — must match the program's
+        // derivation. Skip disputes where no Vote PDA exists for this juror.
+        const [votePda] = findVotePda(program.programId, d.publicKey, jurorPda);
+        const info = await connection.getAccountInfo(votePda);
+        if (!info) continue;
+        try {
+          const ix = await claimJurorRewardIx(program, {
+            authority: wallet.publicKey,
+            dispute: d.publicKey,
+          });
+          await sendTx({ connection, wallet, ixs: [ix] });
+          successes++;
+        } catch (e) {
+          // Skip individual failures; the user may not have a Vote PDA on this
+          // dispute (different PDA derivation through the Juror seed). Just log.
+          console.warn("claim skipped for dispute", d.publicKey.toBase58(), e);
+        }
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["juror"] }),
+        qc.invalidateQueries({ queryKey: ["disputes:resolved"] }),
+      ]);
+      setInfo(
+        successes === 0
+          ? "No claimable rewards found for this wallet."
+          : `Claimed ${successes} reward${successes === 1 ? "" : "s"}.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof TxError
+          ? `${err.anchorCode ?? "tx"}: ${err.message}`
+          : String(err),
+      );
+    } finally {
+      setClaiming(false);
     }
   }
 
@@ -91,7 +151,13 @@ export default function JurorProfileView() {
             {registering ? "Registering…" : "Register as juror"}
           </button>
         ) : connected ? (
-          <button className="btn btn-primary btn-sm">Claim rewards</button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleClaimAll}
+            disabled={claiming || !program}
+          >
+            {claiming ? "Claiming…" : "Claim rewards"}
+          </button>
         ) : (
           <button
             className="btn btn-primary btn-sm"
@@ -116,6 +182,21 @@ export default function JurorProfileView() {
           }}
         >
           {error}
+        </div>
+      ) : null}
+      {info ? (
+        <div
+          style={{
+            background: "var(--green-bg)",
+            border: "1px solid var(--green-border)",
+            color: "var(--green)",
+            padding: "10px 16px",
+            margin: "16px 24px 0",
+            borderRadius: 8,
+            fontSize: 13,
+          }}
+        >
+          {info}
         </div>
       ) : null}
 
@@ -335,9 +416,10 @@ export default function JurorProfileView() {
             <button
               className="btn btn-primary"
               style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
-              disabled={!connected}
+              disabled={!connected || claiming || !program}
+              onClick={handleClaimAll}
             >
-              Claim all rewards
+              {claiming ? "Claiming…" : "Claim all rewards"}
             </button>
           </div>
         </aside>
