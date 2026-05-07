@@ -13,7 +13,7 @@ import {
   findEscrowPda,
   findVaultPda,
   initializeEscrowIx,
-} from "verdict-sdk";
+} from "@/lib/verdict-sdk";
 import { useVerdictProgram } from "@/lib/useVerdictProgram";
 import { sendTx, TxError } from "@/lib/sendTx";
 import { TEST_USDC_MINT, explorerAccountUrl, explorerTxUrl } from "@/lib/config";

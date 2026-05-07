@@ -8,7 +8,7 @@ import {
   type Dispute,
   type Escrow,
   type Juror,
-} from "verdict-sdk";
+} from "@/lib/verdict-sdk";
 import { useVerdictProgram } from "./useVerdictProgram";
 
 // All on-chain account types come back as Anchor's stripped representation

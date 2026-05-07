@@ -1,4 +1,4 @@
-import { type EscrowStatus } from "verdict-sdk";
+import { type EscrowStatus } from "@/lib/verdict-sdk";
 
 const variantClass: Record<string, string> = {
   funded: "bg-cream-200 text-indigo-900",

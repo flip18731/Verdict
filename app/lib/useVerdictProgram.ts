@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
-import { getProgram, type VerdictProgram } from "verdict-sdk";
+import { getProgram, type VerdictProgram } from "@/lib/verdict-sdk";
 
 // Returns the typed Verdict program when a wallet is connected, or null when
 // the user hasn't connected yet. Components that need the program should
