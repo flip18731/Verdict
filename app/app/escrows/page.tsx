@@ -14,7 +14,7 @@ import {
   raiseDisputeIx,
   releaseEscrowIx,
   type Escrow,
-} from "verdict-sdk";
+} from "@/lib/verdict-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEscrowsForWallet, type WithKey } from "@/lib/queries";
 import { useVerdictProgram } from "@/lib/useVerdictProgram";

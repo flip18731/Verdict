@@ -8,7 +8,7 @@ import {
   findVotePda,
   registerJurorIx,
   type Dispute,
-} from "verdict-sdk";
+} from "@/lib/verdict-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { useJurorForWallet, useResolvedDisputes, type WithKey } from "@/lib/queries";
 import { useVerdictProgram } from "@/lib/useVerdictProgram";
