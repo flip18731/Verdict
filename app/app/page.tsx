@@ -1,7 +1,7 @@
-import VerdictDashboard from "@/components/VerdictDashboard";
+import DisputesListView from "@/components/DisputesListView";
 
 export default function Home() {
-  return <VerdictDashboard />;
+  return <DisputesListView />;
 }
 
 export const dynamic = "force-dynamic";
