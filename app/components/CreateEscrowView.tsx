@@ -20,6 +20,9 @@ import { useVerdictProgram } from "@/lib/useVerdictProgram";
 import { sendTx, TxError } from "@/lib/sendTx";
 import { TEST_USDC_MINT, explorerTxUrl } from "@/lib/config";
 
+type Step = 1 | 2 | 3 | 4;
+const TOTAL_STEPS = 4;
+
 export default function CreateEscrowView() {
   const wallet = useWallet();
   const { connection } = useConnection();
@@ -27,25 +30,33 @@ export default function CreateEscrowView() {
   const program = useVerdictProgram();
   const qc = useQueryClient();
 
+  const [step, setStep] = useState<Step>(1);
   const [merchant, setMerchant] = useState("");
-  const [amount, setAmount] = useState("2500");
-  const [releaseAt, setReleaseAt] = useState("");
+  const [amount, setAmount] = useState("");
+  const [votingWindowHours, setVotingWindowHours] = useState("6");
   const [evidenceUri, setEvidenceUri] = useState("");
+  // Kept in state for future expansion / parity with the on-chain ix shape;
+  // the wizard does not expose a release-after input so this defaults to 0.
+  const [releaseAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
 
-  const previewAmount = (() => {
-    const n = parseFloat(amount);
-    if (Number.isNaN(n)) return "0.00";
-    return n.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  // ── Step validation ─────────────────────────────────────────────
+  const merchantValid = (() => {
+    const trimmed = merchant.trim();
+    if (trimmed.length < 32 || trimmed.length > 44) return false;
+    try {
+      new PublicKey(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
   })();
-  const merchantPreview =
-    merchant.length > 8 ? `${merchant.slice(0, 4)}…${merchant.slice(-4)}` : merchant || "—";
+  const amountNum = parseFloat(amount);
+  const amountValid = Number.isFinite(amountNum) && amountNum > 0;
 
+  // ── handleSubmit (unchanged on-chain logic) ─────────────────────
   async function handleSubmit() {
     setError(null);
     setSignature(null);
@@ -110,6 +121,7 @@ export default function CreateEscrowView() {
       setSignature(sig);
       await qc.invalidateQueries({ queryKey: ["escrows"] });
       void evidenceUri;
+      void votingWindowHours;
     } catch (err) {
       setError(
         err instanceof TxError
@@ -122,117 +134,169 @@ export default function CreateEscrowView() {
   }
 
   const connected = !!wallet.publicKey;
+  const merchantPreview = merchantValid
+    ? `${merchant.trim().slice(0, 4)}…${merchant.trim().slice(-4)}`
+    : merchant.trim() || "—";
+  const amountPreview = amountValid
+    ? amountNum.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : "0.00";
 
   return (
-    <>
-      <div className="v-page-header">
-        <div>
-          <div className="v-page-title">New Escrow</div>
-          <div className="v-page-subtitle">
-            Lock funds into a smart contract with automatic dispute resolution
-          </div>
-        </div>
-      </div>
+    <div className="wizard-wrap">
+      <div className="v-card" style={{ padding: 32 }}>
+        <div className="wizard-progress">Step {step} of {TOTAL_STEPS}</div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "560px 1fr",
-          background: "var(--bg-subtle)",
-          minHeight: "calc(100vh - 52px - 105px)",
-        }}
-      >
-        <div style={{ padding: 24, maxWidth: 560 }}>
-          <div className="v-card v-card-lg" style={{ overflow: "hidden" }}>
-            <FormSection label="Parties">
-              <Field
-                label="Merchant wallet address"
-                hint="The service provider who will receive payment on success"
-              >
-                <input
-                  className="v-field-input v-mono"
-                  placeholder="Public key (base58)"
-                  value={merchant}
-                  onChange={(e) => setMerchant(e.target.value)}
-                />
-              </Field>
-            </FormSection>
-
-            <FormSection label="Payment">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Amount (test USDC)">
-                  <input
-                    className="v-field-input v-mono"
-                    type="number"
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </Field>
-                <Field label="Release after (optional)">
-                  <input
-                    className="v-field-input"
-                    type="datetime-local"
-                    value={releaseAt}
-                    onChange={(e) => setReleaseAt(e.target.value)}
-                  />
-                </Field>
-              </div>
-              <div className="v-field-hint">
-                Funds are held in a program-owned vault until released or disputed
-              </div>
-            </FormSection>
-
-            <FormSection label="Dispute settings">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Voting window">
-                  <input className="v-field-input" defaultValue="6 hours" readOnly />
-                </Field>
-                <Field label="Panel size">
-                  <input className="v-field-input" defaultValue="3 jurors" readOnly />
-                </Field>
-              </div>
-              <Field
-                label="Evidence URI (optional)"
-                hint="Attached when a dispute is later raised on this escrow"
-              >
-                <input
-                  className="v-field-input v-mono"
-                  placeholder="ipfs:// or https://"
-                  value={evidenceUri}
-                  onChange={(e) => setEvidenceUri(e.target.value)}
-                />
-              </Field>
-            </FormSection>
-
-            <div
-              style={{
-                padding: "16px 24px",
-                background: "var(--bg-subtle)",
-                borderTop: "1px solid var(--border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <div style={{ fontSize: 12.5, color: "var(--text-3)" }}>
-                Locking{" "}
-                <strong className="v-mono" style={{ color: "var(--text-1)" }}>
-                  {previewAmount}
-                </strong>{" "}
-                USDC →{" "}
-                <strong className="v-mono" style={{ color: "var(--text-1)" }}>
-                  {merchantPreview}
-                </strong>
-              </div>
+        {step === 1 ? (
+          <div className="wizard-step" key="step-1">
+            <div className="wizard-title">Who are you paying?</div>
+            <div className="wizard-hint">
+              Verdict locks your USDC in a program-controlled vault until you release
+              it or a juror panel rules. Start by telling us who the merchant is.
+            </div>
+            <label className="v-field-label">Merchant wallet address</label>
+            <input
+              className="v-field-input v-mono"
+              placeholder="Public key (base58)"
+              value={merchant}
+              onChange={(e) => setMerchant(e.target.value)}
+              autoFocus
+            />
+            <div className="v-field-hint">
+              The service provider who will receive payment if you release the escrow.
+            </div>
+            <div className="wizard-actions">
+              <span />
               <button
                 className="v-btn v-btn-primary"
-                onClick={handleSubmit}
-                disabled={busy}
+                disabled={!merchantValid}
+                onClick={() => setStep(2)}
               >
-                {busy ? "Creating…" : connected ? "Create escrow →" : "Connect wallet"}
+                Next →
               </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 2 ? (
+          <div className="wizard-step" key="step-2">
+            <div className="wizard-title">How much are you locking?</div>
+            <div className="wizard-hint">
+              The full amount transfers from your token account into a PDA-owned
+              vault. It cannot be moved without a release or verdict.
+            </div>
+            <label className="v-field-label">Amount (test USDC)</label>
+            <input
+              className="v-field-input v-mono"
+              type="number"
+              min={1}
+              step="any"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+            />
+            <div className="v-field-hint">
+              Funds are held in a program-owned vault. Neither party can access
+              them without a verdict or release.
+            </div>
+            <div className="wizard-actions">
+              <button className="wizard-back" onClick={() => setStep(1)}>
+                ← Back
+              </button>
+              <button
+                className="v-btn v-btn-primary"
+                disabled={!amountValid}
+                onClick={() => setStep(3)}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 3 ? (
+          <div className="wizard-step" key="step-3">
+            <div className="wizard-title">Dispute settings</div>
+            <div className="wizard-hint">
+              If something goes wrong, a panel of three on-chain jurors rules within
+              the voting window. These defaults are fine for most cases.
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <div>
+                <label className="v-field-label">Voting window (hours)</label>
+                <input
+                  className="v-field-input v-mono"
+                  type="number"
+                  min={1}
+                  value={votingWindowHours}
+                  onChange={(e) => setVotingWindowHours(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="v-field-label">Panel size</label>
+                <input
+                  className="v-field-input"
+                  defaultValue="3 jurors"
+                  readOnly
+                />
+              </div>
+            </div>
+            <label className="v-field-label">Evidence URI (optional)</label>
+            <input
+              className="v-field-input v-mono"
+              placeholder="ipfs:// or https://"
+              value={evidenceUri}
+              onChange={(e) => setEvidenceUri(e.target.value)}
+            />
+            <div className="v-field-hint">
+              You can attach evidence when raising a dispute later — this is optional.
+            </div>
+            <div className="wizard-actions">
+              <button className="wizard-back" onClick={() => setStep(2)}>
+                ← Back
+              </button>
+              <button
+                className="v-btn v-btn-primary"
+                onClick={() => setStep(4)}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === 4 ? (
+          <div className="wizard-step" key="step-4">
+            <div className="wizard-title">Review your escrow</div>
+            <div className="wizard-hint">
+              One last look. Once you confirm, the funds move on-chain immediately.
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <ReviewRow label="Merchant" value={merchantPreview} />
+              <ReviewRow label="Amount" value={`${amountPreview} USDC`} />
+              <ReviewRow label="Voting window" value={`${votingWindowHours || "6"} hours`} />
+              <ReviewRow label="Panel size" value="3 jurors" />
+              {evidenceUri ? (
+                <ReviewRow
+                  label="Evidence"
+                  value={
+                    evidenceUri.length > 28
+                      ? `${evidenceUri.slice(0, 14)}…${evidenceUri.slice(-10)}`
+                      : evidenceUri
+                  }
+                />
+              ) : null}
             </div>
 
             {error ? (
@@ -242,11 +306,11 @@ export default function CreateEscrowView() {
                   background: "var(--red-bg)",
                   border: "1px solid var(--red-border)",
                   color: "var(--red)",
-                  padding: "10px 16px",
-                  margin: "0 24px 16px",
+                  padding: "10px 12px",
                   borderRadius: 6,
-                  fontSize: 13,
+                  fontSize: 12.5,
                   wordBreak: "break-word",
+                  marginBottom: 12,
                 }}
               >
                 {error}
@@ -259,10 +323,10 @@ export default function CreateEscrowView() {
                   background: "var(--green-bg)",
                   border: "1px solid var(--green-border)",
                   color: "var(--green)",
-                  padding: "10px 16px",
-                  margin: "0 24px 16px",
+                  padding: "12px 14px",
                   borderRadius: 6,
                   fontSize: 13,
+                  marginBottom: 12,
                 }}
               >
                 Escrow funded.{" "}
@@ -274,121 +338,57 @@ export default function CreateEscrowView() {
                   style={{ textDecoration: "underline" }}
                 >
                   View tx
-                </a>{" "}
-                ·{" "}
-                <Link href="/escrows" style={{ textDecoration: "underline" }}>
-                  My escrows
+                </a>
+              </div>
+            ) : null}
+
+            <div className="wizard-actions">
+              <button
+                className="wizard-back"
+                onClick={() => setStep(3)}
+                disabled={busy}
+              >
+                ← Back
+              </button>
+              {signature ? (
+                <Link href="/escrows" className="v-btn v-btn-primary">
+                  View my escrows →
                 </Link>
+              ) : (
+                <button
+                  className="v-btn v-btn-primary"
+                  onClick={handleSubmit}
+                  disabled={busy}
+                >
+                  {busy ? "Creating…" : connected ? "Create escrow" : "Connect wallet"}
+                </button>
+              )}
+            </div>
+
+            {!signature ? (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-3)",
+                  marginTop: 12,
+                  textAlign: "right",
+                }}
+              >
+                This will open your wallet to confirm the transaction.
               </div>
             ) : null}
           </div>
-        </div>
-
-        {/* Right explainer */}
-        <aside className="v-layout-side" style={{ padding: "24px 28px" }}>
-          <div className="v-side-label" style={{ marginBottom: 16 }}>
-            How it works
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <Step
-              n={1}
-              title="Fund the escrow"
-              body="Your USDC is locked in a program-owned vault. Neither party can access it without a verdict or mutual release."
-            />
-            <Step
-              n={2}
-              title="Merchant delivers"
-              body="If satisfied, you release the funds directly. If not, raise a dispute with evidence."
-            />
-            <Step
-              n={3}
-              title="Bonded jurors decide"
-              body="A panel of 3 jurors reviews your evidence and votes. Median resolution: 3.4 hours."
-            />
-            <Step
-              n={4}
-              title="Escrow auto-releases"
-              body="The majority verdict triggers automatic USDC transfer. No manual steps, no waiting."
-            />
-          </div>
-
-          <div
-            style={{
-              marginTop: 28,
-              padding: 14,
-              background: "var(--bg-muted)",
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-2)" }}>
-              Tie-breaker rule
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.6 }}>
-              If votes are tied, funds are released to the merchant. This is a
-              documented MVP design choice — both parties agree to this at
-              escrow creation.
-            </div>
-          </div>
-        </aside>
+        ) : null}
       </div>
-    </>
-  );
-}
-
-function FormSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>{label}</div>
-      {children}
     </div>
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
+function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <label className="v-field-label">{label}</label>
-      {children}
-      {hint ? <div className="v-field-hint">{hint}</div> : null}
-    </div>
-  );
-}
-
-function Step({ n, title, body }: { n: number; title: string; body: string }) {
-  return (
-    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-      <div
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: "50%",
-          background: "var(--text-1)",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 11,
-          fontWeight: 600,
-          flexShrink: 0,
-          marginTop: 1,
-        }}
-      >
-        {n}
-      </div>
-      <div>
-        <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 2 }}>{title}</div>
-        <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.6 }}>{body}</div>
-      </div>
+    <div className="wizard-review-row">
+      <span className="wizard-review-label">{label}</span>
+      <span className="wizard-review-val">{value}</span>
     </div>
   );
 }
