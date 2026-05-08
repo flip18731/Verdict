@@ -29,9 +29,11 @@ const DEMO_CASES: CaseRow[] = [
 ];
 
 const VOTE_BADGE: Record<"Refund" | "Release", string> = {
-  Refund: "badge badge-gold",
-  Release: "badge badge-blue",
+  Refund: "v-badge v-badge-gold",
+  Release: "v-badge v-badge-blue",
 };
+
+const CASE_TABLE_COLS = "100px 1fr 90px 90px 90px";
 
 export default function JurorProfileView() {
   const wallet = useWallet();
@@ -72,10 +74,6 @@ export default function JurorProfileView() {
     }
   }
 
-  // Walk every resolved dispute, look up the user's Vote PDA, and submit a
-  // claim_juror_reward for each one that exists. Each claim is its own tx —
-  // claim is idempotent-safe (the program closes the Vote PDA on success, so
-  // a second call fails benignly).
   async function handleClaimAll() {
     if (!program || !wallet.publicKey || !resolved.data) return;
     setError(null);
@@ -85,11 +83,9 @@ export default function JurorProfileView() {
     try {
       const [jurorPda] = findJurorPda(program.programId, wallet.publicKey);
       for (const d of resolved.data) {
-        // Vote PDA is keyed by (dispute, juror_pda) — must match the program's
-        // derivation. Skip disputes where no Vote PDA exists for this juror.
         const [votePda] = findVotePda(program.programId, d.publicKey, jurorPda);
-        const info = await connection.getAccountInfo(votePda);
-        if (!info) continue;
+        const accInfo = await connection.getAccountInfo(votePda);
+        if (!accInfo) continue;
         try {
           const ix = await claimJurorRewardIx(program, {
             authority: wallet.publicKey,
@@ -98,8 +94,6 @@ export default function JurorProfileView() {
           await sendTx({ connection, wallet, ixs: [ix] });
           successes++;
         } catch (e) {
-          // Skip individual failures; the user may not have a Vote PDA on this
-          // dispute (different PDA derivation through the Juror seed). Just log.
           console.warn("claim skipped for dispute", d.publicKey.toBase58(), e);
         }
       }
@@ -125,14 +119,17 @@ export default function JurorProfileView() {
 
   return (
     <>
-      <div className="page-header">
+      <div className="v-page-header">
         <div>
-          <div className="page-title">Juror Profile</div>
-          <div className="page-subtitle">
+          <div className="v-page-title">Juror Profile</div>
+          <div className="v-page-subtitle">
             {connected ? (
               <>
-                {wallet.publicKey?.toBase58().slice(0, 6)}…
-                {wallet.publicKey?.toBase58().slice(-4)} ·{" "}
+                <span className="v-mono">
+                  {wallet.publicKey?.toBase58().slice(0, 6)}…
+                  {wallet.publicKey?.toBase58().slice(-4)}
+                </span>{" "}
+                ·{" "}
                 {isRegistered
                   ? `${repValue} reputation · ${casesVoted} cases voted`
                   : "Not registered yet"}
@@ -144,7 +141,7 @@ export default function JurorProfileView() {
         </div>
         {connected && !isRegistered ? (
           <button
-            className="btn btn-primary btn-sm"
+            className="v-btn v-btn-primary v-btn-sm"
             onClick={handleRegister}
             disabled={registering || !program}
           >
@@ -152,137 +149,80 @@ export default function JurorProfileView() {
           </button>
         ) : connected ? (
           <button
-            className="btn btn-primary btn-sm"
+            className="v-btn v-btn-primary v-btn-sm"
             onClick={handleClaimAll}
             disabled={claiming || !program}
           >
             {claiming ? "Claiming…" : "Claim rewards"}
           </button>
         ) : (
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => setVisible(true)}
-          >
+          <button className="v-btn v-btn-primary v-btn-sm" onClick={() => setVisible(true)}>
             Connect wallet
           </button>
         )}
       </div>
 
-      {error ? (
-        <div
-          style={{
-            background: "var(--red-bg)",
-            border: "1px solid var(--red-border)",
-            color: "var(--red)",
-            padding: "10px 16px",
-            margin: "16px 24px 0",
-            borderRadius: 8,
-            fontSize: 13,
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-      {info ? (
-        <div
-          style={{
-            background: "var(--green-bg)",
-            border: "1px solid var(--green-border)",
-            color: "var(--green)",
-            padding: "10px 16px",
-            margin: "16px 24px 0",
-            borderRadius: 8,
-            fontSize: 13,
-          }}
-        >
-          {info}
-        </div>
-      ) : null}
+      {error ? <Banner kind="error" text={error} /> : null}
+      {info ? <Banner kind="success" text={info} /> : null}
 
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 300px",
-          background: "var(--bg-2)",
+          background: "var(--bg-subtle)",
           minHeight: "calc(100vh - 52px - 105px)",
         }}
       >
         <div style={{ padding: "20px 24px" }}>
-          {/* Stat cards */}
-          <div className="stats-row" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-            <div className="stat-card">
-              <div className="stat-label">Reputation</div>
-              <div className="stat-value">
+          <div className="v-stats" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+            <div className="v-card v-stat">
+              <div className="v-stat-label">Reputation</div>
+              <div className="v-stat-value">
                 {connected && isRegistered ? repValue : "—"}
               </div>
               <div
-                className={
-                  connected && isRegistered ? "stat-delta delta-up" : "stat-delta"
-                }
-                style={
-                  !connected || !isRegistered
-                    ? { color: "var(--text-3)" }
-                    : undefined
-                }
+                className={connected && isRegistered ? "v-stat-delta delta-up" : "v-stat-delta"}
+                style={!connected || !isRegistered ? { color: "var(--text-3)" } : undefined}
               >
                 {connected && isRegistered ? "↑ 12 this week" : "Not registered"}
               </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-label">Cases voted</div>
-              <div className="stat-value">
+            <div className="v-card v-stat">
+              <div className="v-stat-label">Cases voted</div>
+              <div className="v-stat-value">
                 {connected && isRegistered ? casesVoted : "—"}
               </div>
-              <div className="stat-delta" style={{ color: "var(--text-3)" }}>
+              <div className="v-stat-delta" style={{ color: "var(--text-3)" }}>
                 94% majority aligned
               </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-label">Pending rewards</div>
-              <div className="stat-value">$42.00</div>
-              <div className="stat-delta delta-up">3 cases</div>
+            <div className="v-card v-stat">
+              <div className="v-stat-label">Pending rewards</div>
+              <div className="v-stat-value">$42.00</div>
+              <div className="v-stat-delta delta-up">3 cases</div>
             </div>
           </div>
 
-          {/* Connect prompt */}
           {!connected ? (
             <div
-              style={{
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                padding: 32,
-                textAlign: "center",
-                marginBottom: 16,
-                boxShadow: "var(--shadow-sm)",
-              }}
+              className="v-card"
+              style={{ padding: 32, textAlign: "center", marginBottom: 16 }}
             >
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
                 Connect your wallet
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "var(--text-2)",
-                  marginBottom: 16,
-                }}
-              >
+              <div style={{ fontSize: 13, color: "var(--text-2)", marginBottom: 16 }}>
                 Register as a juror, vote on disputes, and earn reputation by
                 voting with the panel majority.
               </div>
-              <button
-                className="btn btn-primary"
-                onClick={() => setVisible(true)}
-              >
+              <button className="v-btn v-btn-primary" onClick={() => setVisible(true)}>
                 Connect wallet
               </button>
             </div>
           ) : null}
 
-          {/* Tier progress */}
           {connected && isRegistered ? (
-            <div className="table-wrap" style={{ marginBottom: 16 }}>
+            <div className="v-table" style={{ marginBottom: 16 }}>
               <div
                 style={{
                   padding: "16px 20px",
@@ -293,22 +233,41 @@ export default function JurorProfileView() {
                 }}
               >
                 <div>
-                  <div className="section-title">Tier progress</div>
-                  <div className="section-sub">{repValue} / 1,000 to Tier III</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>Tier progress</div>
+                  <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+                    {repValue} / 1,000 to Tier III
+                  </div>
                 </div>
-                <span className="badge badge-gold">Tier II</span>
+                <span className="v-badge v-badge-gold">Tier II</span>
               </div>
               <div style={{ padding: 20 }}>
-                <div className="tier-row">
+                <div
+                  className="v-mono"
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 11.5,
+                    color: "var(--text-3)",
+                    marginBottom: 8,
+                  }}
+                >
                   <span>Tier I · 0</span>
                   <span>Tier II · 500</span>
                   <span>Tier III · 1,000</span>
                   <span>Tier IV · 2,500</span>
                 </div>
-                <div className="tier-track">
+                <div
+                  style={{
+                    height: 6,
+                    background: "var(--bg-muted)",
+                    borderRadius: 3,
+                  }}
+                >
                   <div
-                    className="tier-fill"
                     style={{
+                      height: "100%",
+                      background: "var(--gold)",
+                      borderRadius: 3,
                       width: `${Math.min((repValue / 2500) * 100, 100)}%`,
                     }}
                   />
@@ -317,10 +276,9 @@ export default function JurorProfileView() {
             </div>
           ) : null}
 
-          {/* Recent cases — demo data when no wallet, empty when no votes */}
           {connected && casesVoted === 0 ? (
-            <div className="table-wrap">
-              <div className="empty">
+            <div className="v-table">
+              <div className="v-empty">
                 You haven&rsquo;t voted on any cases yet. When a dispute is
                 assigned to your panel, it will appear in{" "}
                 <a href="/disputes" style={{ color: "var(--text-1)" }}>
@@ -330,25 +288,24 @@ export default function JurorProfileView() {
               </div>
             </div>
           ) : (
-            <div className="table-wrap">
-              <div
-                className="table-head"
-                style={{ gridTemplateColumns: "100px 1fr 90px 90px 90px" }}
-              >
-                <div className="th">Case</div>
-                <div className="th">Matter</div>
-                <div className="th">Your vote</div>
-                <div className="th">Outcome</div>
-                <div className="th">Reward</div>
+            <div className="v-table">
+              <div className="v-thead" style={{ gridTemplateColumns: CASE_TABLE_COLS }}>
+                <div className="v-th">Case</div>
+                <div className="v-th">Matter</div>
+                <div className="v-th">Your vote</div>
+                <div className="v-th">Outcome</div>
+                <div className="v-th">Reward</div>
               </div>
               {DEMO_CASES.map((c) => (
                 <div
-                  className="table-row"
-                  style={{ gridTemplateColumns: "100px 1fr 90px 90px 90px" }}
                   key={c.id}
+                  className="v-tr"
+                  style={{ gridTemplateColumns: CASE_TABLE_COLS, cursor: "default" }}
                 >
-                  <div className="cell-id">{c.id}</div>
-                  <div className="cell-matter">{c.matter}</div>
+                  <div className="v-mono" style={{ fontSize: 12.5, fontWeight: 500 }}>
+                    {c.id}
+                  </div>
+                  <div style={{ fontSize: 13.5 }}>{c.matter}</div>
                   <div>
                     <span className={VOTE_BADGE[c.yourVote]} style={{ fontSize: 11 }}>
                       {c.yourVote}
@@ -360,9 +317,10 @@ export default function JurorProfileView() {
                     </span>
                   </div>
                   <div
-                    className="cell-amount"
+                    className="v-mono"
                     style={{
                       fontSize: 13,
+                      fontWeight: 500,
                       color: c.reward ? "var(--green)" : "var(--text-3)",
                     }}
                   >
@@ -374,10 +332,10 @@ export default function JurorProfileView() {
           )}
         </div>
 
-        <aside className="layout-side">
-          <div className="side-section">
-            <div className="side-label">Juror details</div>
-            <SideMetric
+        <aside className="v-layout-side">
+          <div style={{ marginBottom: 24 }}>
+            <div className="v-side-label">Juror details</div>
+            <SideRow
               label="Wallet"
               value={
                 connected
@@ -385,36 +343,28 @@ export default function JurorProfileView() {
                   : "—"
               }
             />
-            <SideMetric
+            <SideRow
               label="Registered"
               value={connected && isRegistered ? "On-chain" : connected ? "Not yet" : "—"}
             />
-            <SideMetric label="Active panels" value={isRegistered ? "1" : "0"} />
-            <SideMetric label="Majority rate" value="94%" valueColor="var(--green)" />
+            <SideRow label="Active panels" value={isRegistered ? "1" : "0"} />
+            <SideRow label="Majority rate" value="94%" valueColor="var(--green)" />
           </div>
-          <div className="sep" />
-          <div className="side-section">
-            <div className="side-label">Claimable rewards</div>
-            <SideMetric label="ESC-0039" value="$14.00" valueColor="var(--green)" />
-            <SideMetric label="ESC-0037" value="$8.50" valueColor="var(--green)" />
-            <SideMetric label="ESC-0033" value="$19.50" valueColor="var(--green)" />
-            <div className="sep" />
-            <div className="side-metric">
-              <span
-                className="side-metric-label"
-                style={{ fontWeight: 600, color: "var(--text-1)" }}
-              >
-                Total
-              </span>
-              <span
-                className="side-metric-val"
-                style={{ color: "var(--green)", fontSize: 15 }}
-              >
+          <div className="v-sep" />
+          <div>
+            <div className="v-side-label">Claimable rewards</div>
+            <SideRow label="ESC-0039" value="$14.00" valueColor="var(--green)" />
+            <SideRow label="ESC-0037" value="$8.50" valueColor="var(--green)" />
+            <SideRow label="ESC-0033" value="$19.50" valueColor="var(--green)" />
+            <div className="v-sep" />
+            <div className="v-side-row">
+              <span style={{ fontWeight: 600 }}>Total</span>
+              <span className="v-mono" style={{ color: "var(--green)", fontSize: 15, fontWeight: 500 }}>
                 $42.00
               </span>
             </div>
             <button
-              className="btn btn-primary"
+              className="v-btn v-btn-primary"
               style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
               disabled={!connected || claiming || !program}
               onClick={handleClaimAll}
@@ -428,7 +378,40 @@ export default function JurorProfileView() {
   );
 }
 
-function SideMetric({
+function Banner({
+  kind,
+  text,
+}: {
+  kind: "error" | "success";
+  text: React.ReactNode;
+}) {
+  const c =
+    kind === "error"
+      ? { bg: "var(--red-bg)", border: "var(--red-border)", text: "var(--red)" }
+      : {
+          bg: "var(--green-bg)",
+          border: "var(--green-border)",
+          text: "var(--green)",
+        };
+  return (
+    <div
+      style={{
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        color: c.text,
+        padding: "10px 16px",
+        margin: "16px 24px 0",
+        borderRadius: 8,
+        fontSize: 13,
+        fontFamily: kind === "error" ? "var(--font-mono), monospace" : "inherit",
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+function SideRow({
   label,
   value,
   valueColor,
@@ -438,11 +421,11 @@ function SideMetric({
   valueColor?: string;
 }) {
   return (
-    <div className="side-metric">
-      <span className="side-metric-label">{label}</span>
+    <div className="v-side-row">
+      <span style={{ color: "var(--text-2)" }}>{label}</span>
       <span
-        className="side-metric-val"
-        style={valueColor ? { color: valueColor } : undefined}
+        className="v-mono"
+        style={{ fontWeight: 500, ...(valueColor ? { color: valueColor } : {}) }}
       >
         {value}
       </span>

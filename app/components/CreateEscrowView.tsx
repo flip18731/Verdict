@@ -83,8 +83,6 @@ export default function CreateEscrowView() {
       const escrowId = new BN(Date.now());
       const payerAta = getAssociatedTokenAddressSync(mint, wallet.publicKey);
       const ixs: TransactionInstruction[] = [];
-      // Create the payer ATA if missing — judges' demo wallets always have it,
-      // but a real first-time user might not.
       const ataInfo = await connection.getAccountInfo(payerAta);
       if (!ataInfo) {
         ixs.push(
@@ -104,15 +102,13 @@ export default function CreateEscrowView() {
           mint,
           payerTokenAccount: payerAta,
           escrowId,
-          amount: new BN(Math.floor(num * 1_000_000)), // USDC has 6 decimals
+          amount: new BN(Math.floor(num * 1_000_000)),
           releaseAfter: new BN(releaseUnix),
         }),
       );
       const sig = await sendTx({ connection, wallet, ixs });
       setSignature(sig);
       await qc.invalidateQueries({ queryKey: ["escrows"] });
-      // Suppress an unused-var lint nag — evidenceUri is captured for future
-      // raise_dispute call when the merchant disputes; not part of init.
       void evidenceUri;
     } catch (err) {
       setError(
@@ -129,10 +125,10 @@ export default function CreateEscrowView() {
 
   return (
     <>
-      <div className="page-header">
+      <div className="v-page-header">
         <div>
-          <div className="page-title">New Escrow</div>
-          <div className="page-subtitle">
+          <div className="v-page-title">New Escrow</div>
+          <div className="v-page-subtitle">
             Lock funds into a smart contract with automatic dispute resolution
           </div>
         </div>
@@ -142,89 +138,96 @@ export default function CreateEscrowView() {
         style={{
           display: "grid",
           gridTemplateColumns: "560px 1fr",
-          background: "var(--bg-2)",
+          background: "var(--bg-subtle)",
           minHeight: "calc(100vh - 52px - 105px)",
         }}
       >
-        <div className="form-wrap">
-          <div className="form-card">
-            <div className="form-section">
-              <div className="form-section-label">Parties</div>
-              <div className="field">
-                <label className="field-label">Merchant wallet address</label>
+        <div style={{ padding: 24, maxWidth: 560 }}>
+          <div className="v-card v-card-lg" style={{ overflow: "hidden" }}>
+            <FormSection label="Parties">
+              <Field
+                label="Merchant wallet address"
+                hint="The service provider who will receive payment on success"
+              >
                 <input
-                  className="field-input mono-input"
+                  className="v-field-input v-mono"
                   placeholder="Public key (base58)"
                   value={merchant}
                   onChange={(e) => setMerchant(e.target.value)}
                 />
-                <div className="field-hint">
-                  The service provider who will receive payment on success
-                </div>
-              </div>
-            </div>
+              </Field>
+            </FormSection>
 
-            <div className="form-section">
-              <div className="form-section-label">Payment</div>
-              <div className="field-row">
-                <div className="field">
-                  <label className="field-label">Amount (test USDC)</label>
+            <FormSection label="Payment">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <Field label="Amount (test USDC)">
                   <input
-                    className="field-input mono-input"
+                    className="v-field-input v-mono"
                     type="number"
                     placeholder="0.00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                   />
-                </div>
-                <div className="field">
-                  <label className="field-label">Release after (optional)</label>
+                </Field>
+                <Field label="Release after (optional)">
                   <input
-                    className="field-input"
+                    className="v-field-input"
                     type="datetime-local"
                     value={releaseAt}
                     onChange={(e) => setReleaseAt(e.target.value)}
                   />
-                </div>
+                </Field>
               </div>
-              <div className="field-hint">
+              <div className="v-field-hint">
                 Funds are held in a program-owned vault until released or disputed
               </div>
-            </div>
+            </FormSection>
 
-            <div className="form-section">
-              <div className="form-section-label">Dispute settings</div>
-              <div className="field-row">
-                <div className="field">
-                  <label className="field-label">Voting window</label>
-                  <input className="field-input" defaultValue="6 hours" readOnly />
-                </div>
-                <div className="field">
-                  <label className="field-label">Panel size</label>
-                  <input className="field-input" defaultValue="3 jurors" readOnly />
-                </div>
+            <FormSection label="Dispute settings">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <Field label="Voting window">
+                  <input className="v-field-input" defaultValue="6 hours" readOnly />
+                </Field>
+                <Field label="Panel size">
+                  <input className="v-field-input" defaultValue="3 jurors" readOnly />
+                </Field>
               </div>
-              <div className="field">
-                <label className="field-label">Evidence URI (optional)</label>
+              <Field
+                label="Evidence URI (optional)"
+                hint="Attached when a dispute is later raised on this escrow"
+              >
                 <input
-                  className="field-input mono-input"
+                  className="v-field-input v-mono"
                   placeholder="ipfs:// or https://"
                   value={evidenceUri}
                   onChange={(e) => setEvidenceUri(e.target.value)}
                 />
-                <div className="field-hint">
-                  Attached when a dispute is later raised on this escrow
-                </div>
-              </div>
-            </div>
+              </Field>
+            </FormSection>
 
-            <div className="form-footer">
-              <div className="form-preview">
-                Locking <strong>{previewAmount}</strong> USDC →{" "}
-                <strong>{merchantPreview}</strong>
+            <div
+              style={{
+                padding: "16px 24px",
+                background: "var(--bg-subtle)",
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+                Locking{" "}
+                <strong className="v-mono" style={{ color: "var(--text-1)" }}>
+                  {previewAmount}
+                </strong>{" "}
+                USDC →{" "}
+                <strong className="v-mono" style={{ color: "var(--text-1)" }}>
+                  {merchantPreview}
+                </strong>
               </div>
               <button
-                className="btn btn-primary"
+                className="v-btn v-btn-primary"
                 onClick={handleSubmit}
                 disabled={busy}
               >
@@ -234,6 +237,7 @@ export default function CreateEscrowView() {
 
             {error ? (
               <div
+                className="v-mono"
                 style={{
                   background: "var(--red-bg)",
                   border: "1px solid var(--red-border)",
@@ -242,7 +246,6 @@ export default function CreateEscrowView() {
                   margin: "0 24px 16px",
                   borderRadius: 6,
                   fontSize: 13,
-                  fontFamily: "var(--font-mono), monospace",
                   wordBreak: "break-word",
                 }}
               >
@@ -267,10 +270,8 @@ export default function CreateEscrowView() {
                   href={explorerTxUrl(signature)}
                   target="_blank"
                   rel="noreferrer"
-                  style={{
-                    fontFamily: "var(--font-mono), monospace",
-                    textDecoration: "underline",
-                  }}
+                  className="v-mono"
+                  style={{ textDecoration: "underline" }}
                 >
                   View tx
                 </a>{" "}
@@ -284,8 +285,8 @@ export default function CreateEscrowView() {
         </div>
 
         {/* Right explainer */}
-        <aside className="layout-side" style={{ padding: "24px 28px" }}>
-          <div className="side-label" style={{ marginBottom: 16 }}>
+        <aside className="v-layout-side" style={{ padding: "24px 28px" }}>
+          <div className="v-side-label" style={{ marginBottom: 16 }}>
             How it works
           </div>
 
@@ -312,9 +313,19 @@ export default function CreateEscrowView() {
             />
           </div>
 
-          <div className="tie-note">
-            <div className="tie-note-title">Tie-breaker rule</div>
-            <div className="tie-note-body">
+          <div
+            style={{
+              marginTop: 28,
+              padding: 14,
+              background: "var(--bg-muted)",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--text-2)" }}>
+              Tie-breaker rule
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.6 }}>
               If votes are tied, funds are released to the merchant. This is a
               documented MVP design choice — both parties agree to this at
               escrow creation.
@@ -326,13 +337,57 @@ export default function CreateEscrowView() {
   );
 }
 
+function FormSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label className="v-field-label">{label}</label>
+      {children}
+      {hint ? <div className="v-field-hint">{hint}</div> : null}
+    </div>
+  );
+}
+
 function Step({ n, title, body }: { n: number; title: string; body: string }) {
   return (
-    <div className="step-row">
-      <div className="step-num">{n}</div>
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+      <div
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          background: "var(--text-1)",
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 11,
+          fontWeight: 600,
+          flexShrink: 0,
+          marginTop: 1,
+        }}
+      >
+        {n}
+      </div>
       <div>
-        <div className="step-title">{title}</div>
-        <div className="step-body">{body}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 2 }}>{title}</div>
+        <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.6 }}>{body}</div>
       </div>
     </div>
   );

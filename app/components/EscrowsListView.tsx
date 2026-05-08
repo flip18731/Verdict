@@ -73,10 +73,10 @@ const DEMO: DemoEscrow[] = [
 ];
 
 const STATUS_BADGE: Record<DemoEscrow["status"], string> = {
-  Funded: "badge badge-blue",
-  Released: "badge badge-green",
-  Disputed: "badge badge-gold",
-  Refunded: "badge badge-gold",
+  Funded: "v-badge v-badge-blue",
+  Released: "v-badge v-badge-green",
+  Disputed: "v-badge v-badge-gold",
+  Refunded: "v-badge v-badge-gold",
 };
 
 type StatusKey = keyof typeof STATUS_BADGE;
@@ -88,7 +88,7 @@ function statusOf(account: { status: object }): StatusKey {
 }
 
 type Action = { kind: "release" | "raise"; row: WithKey<Escrow> };
-
+const TABLE_COLS = "100px 1fr 110px 110px 90px 1fr";
 const DEFAULT_VOTING_WINDOW_SECONDS = 6 * 3600;
 
 export default function EscrowsListView() {
@@ -121,7 +121,6 @@ export default function EscrowsListView() {
       const ixs: TransactionInstruction[] = [];
 
       if (pending.kind === "release") {
-        // Bootstrap merchant ATA if missing — release_escrow can't create it.
         const ataInfo = await connection.getAccountInfo(merchantAta);
         if (!ataInfo) {
           ixs.push(
@@ -179,65 +178,72 @@ export default function EscrowsListView() {
 
   return (
     <>
-      <div className="page-header">
+      <div className="v-page-header">
         <div>
-          <div className="page-title">My Escrows</div>
-          <div className="page-subtitle">
+          <div className="v-page-title">My Escrows</div>
+          <div className="v-page-subtitle">
             {connected
               ? "Every escrow where you are payer or merchant"
               : "Connect a wallet to see your escrows"}
           </div>
         </div>
-        <div className="page-actions">
-          <button className="btn btn-ghost btn-sm">Filter</button>
-          <Link href="/escrows/new" className="btn btn-primary btn-sm">
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="v-btn v-btn-ghost v-btn-sm">Filter</button>
+          <Link href="/escrows/new" className="v-btn v-btn-primary v-btn-sm">
             New escrow
           </Link>
         </div>
       </div>
 
-      {error ? (
-        <Banner kind="error" text={error} />
-      ) : info ? (
-        <Banner kind="success" text={info} />
-      ) : null}
+      {error ? <Banner kind="error" text={error} /> : null}
+      {info ? <Banner kind="success" text={info} /> : null}
 
-      <div className="layout">
-        <div className="layout-main">
+      <div className="v-layout">
+        <div className="v-layout-main">
           {!connected ? (
-            <Banner
-              kind="info"
-              text={
-                <>
-                  Showing example escrows. Connect a wallet to see your real
-                  positions.
-                </>
-              }
-              cta={{ label: "Connect wallet", onClick: () => setVisible(true) }}
-              inline
-            />
+            <div
+              className="v-card"
+              style={{
+                padding: "12px 16px",
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, color: "var(--text-2)" }}>
+                Showing example escrows. Connect a wallet to see your real positions.
+              </div>
+              <button
+                className="v-btn v-btn-primary v-btn-sm"
+                onClick={() => setVisible(true)}
+              >
+                Connect wallet
+              </button>
+            </div>
           ) : null}
 
-          <div className="table-wrap">
-            <div className="table-head">
-              <div className="th">Case</div>
-              <div className="th">Matter</div>
-              <div className="th">Amount</div>
-              <div className="th">Status</div>
-              <div className="th">Closes</div>
-              <div className="th">Role</div>
+          <div className="v-table">
+            <div className="v-thead" style={{ gridTemplateColumns: TABLE_COLS }}>
+              <div className="v-th">Case</div>
+              <div className="v-th">Matter</div>
+              <div className="v-th">Amount</div>
+              <div className="v-th">Status</div>
+              <div className="v-th">Role</div>
+              <div className="v-th">Action</div>
             </div>
 
             {connected && live.isLoading ? (
-              <div className="empty">Loading escrows from chain…</div>
+              <div className="v-empty">Loading escrows from chain…</div>
             ) : connected && liveRows.length === 0 ? (
-              <div className="empty">
+              <div className="v-empty">
                 <p style={{ marginBottom: 8 }}>
                   You have no escrows yet — neither as payer nor as merchant.
                 </p>
                 <Link
                   href="/escrows/new"
-                  className="btn btn-primary btn-sm"
+                  className="v-btn v-btn-primary v-btn-sm"
                   style={{ display: "inline-flex" }}
                 >
                   Open your first escrow →
@@ -255,62 +261,59 @@ export default function EscrowsListView() {
                 const canAct = isPayer && status === "Funded";
 
                 return (
-                  <div key={id} className="table-row" style={{ cursor: "default" }}>
-                    <div className="cell-id">{id.slice(0, 8)}…</div>
+                  <div
+                    key={id}
+                    className="v-tr"
+                    style={{ gridTemplateColumns: TABLE_COLS, cursor: "default" }}
+                  >
+                    <div className="v-mono" style={{ fontSize: 12.5, fontWeight: 500 }}>
+                      {id.slice(0, 8)}…
+                    </div>
                     <div>
-                      <div className="cell-matter">
+                      <div style={{ fontSize: 13.5 }}>
                         {e.account.payer.toBase58().slice(0, 6)} →{" "}
                         {e.account.merchant.toBase58().slice(0, 6)}
                       </div>
-                      <div className="cell-matter-sub">
+                      <div className="v-mono" style={{ fontSize: 11.5, color: "var(--text-3)" }}>
                         escrow id {String(e.account.escrowId)}
                       </div>
                     </div>
-                    <div className="cell-amount">
+                    <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
                       {(Number(e.account.amount) / 1e6).toFixed(2)} USDC
                     </div>
                     <div>
                       <span className={STATUS_BADGE[status]}>
-                        <span className="badge-dot" />
+                        <span className="v-badge-dot" />
                         {status}
                       </span>
                     </div>
-                    <div className="cell-time">{role}</div>
+                    <div className="v-mono" style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+                      {role}
+                    </div>
                     <div style={{ display: "flex", gap: 6 }}>
                       {canAct ? (
                         <>
                           <button
-                            className="btn btn-primary btn-sm"
-                            onClick={() =>
-                              setPending({ kind: "release", row: e })
-                            }
+                            className="v-btn v-btn-primary v-btn-sm"
+                            onClick={() => setPending({ kind: "release", row: e })}
                             disabled={busy}
                           >
                             Release
                           </button>
                           <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() =>
-                              setPending({ kind: "raise", row: e })
-                            }
+                            className="v-btn v-btn-ghost v-btn-sm"
+                            onClick={() => setPending({ kind: "raise", row: e })}
                             disabled={busy}
                           >
                             Dispute
                           </button>
                         </>
                       ) : status === "Disputed" ? (
-                        <Link
-                          href={`/disputes/${id}`}
-                          className="btn btn-ghost btn-sm"
-                        >
+                        <Link href={`/disputes/${id}`} className="v-btn v-btn-ghost v-btn-sm">
                           View
                         </Link>
                       ) : (
-                        <span
-                          style={{ fontSize: 12, color: "var(--text-3)" }}
-                        >
-                          —
-                        </span>
+                        <span style={{ fontSize: 12, color: "var(--text-3)" }}>—</span>
                       )}
                     </div>
                   </div>
@@ -318,35 +321,50 @@ export default function EscrowsListView() {
               })
             ) : (
               DEMO.map((r) => (
-                <Link key={r.id} href={`/disputes/${r.id}`} className="table-row">
-                  <div className="cell-id">{r.id}</div>
-                  <div>
-                    <div className="cell-matter">{r.matter}</div>
-                    <div className="cell-matter-sub">{r.matterSub}</div>
+                <Link
+                  key={r.id}
+                  href={`/disputes/${r.id}`}
+                  className="v-tr"
+                  style={{ gridTemplateColumns: TABLE_COLS }}
+                >
+                  <div className="v-mono" style={{ fontSize: 12.5, fontWeight: 500 }}>
+                    {r.id}
                   </div>
-                  <div className="cell-amount">{r.amount}</div>
+                  <div>
+                    <div style={{ fontSize: 13.5 }}>{r.matter}</div>
+                    <div className="v-mono" style={{ fontSize: 11.5, color: "var(--text-3)" }}>
+                      {r.matterSub}
+                    </div>
+                  </div>
+                  <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+                    {r.amount}
+                  </div>
                   <div>
                     <span className={STATUS_BADGE[r.status]}>
-                      <span className="badge-dot" />
+                      <span className="v-badge-dot" />
                       {r.status}
                     </span>
                   </div>
-                  <div className="cell-time">{r.closes}</div>
-                  <div className="cell-time">{r.role}</div>
+                  <div className="v-mono" style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+                    {r.role}
+                  </div>
+                  <div className="v-mono" style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+                    {r.closes}
+                  </div>
                 </Link>
               ))
             )}
           </div>
         </div>
 
-        <aside className="layout-side">
-          <div className="side-section">
-            <div className="side-label">My positions</div>
-            <SideMetric
+        <aside className="v-layout-side">
+          <div style={{ marginBottom: 24 }}>
+            <div className="v-side-label">My positions</div>
+            <SideRow
               label="Open escrows"
               value={connected ? String(liveRows.length) : "2"}
             />
-            <SideMetric
+            <SideRow
               label="Funded"
               value={
                 connected
@@ -358,7 +376,7 @@ export default function EscrowsListView() {
                   : "1"
               }
             />
-            <SideMetric
+            <SideRow
               label="Disputed"
               value={
                 connected
@@ -371,9 +389,9 @@ export default function EscrowsListView() {
               }
             />
           </div>
-          <div className="sep" />
-          <div className="side-section">
-            <div className="side-label">Tip</div>
+          <div className="v-sep" />
+          <div>
+            <div className="v-side-label">Tip</div>
             <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.6 }}>
               Click <strong>Release</strong> to pay the merchant, or{" "}
               <strong>Dispute</strong> to send the case to a juror panel. Both
@@ -417,25 +435,19 @@ export default function EscrowsListView() {
               the panel resolves.
             </p>
             <label
-              className="field-label"
+              className="v-field-label"
               style={{ display: "block", marginBottom: 6 }}
             >
               Evidence URI
             </label>
             <input
-              className="field-input mono-input"
+              className="v-field-input v-mono"
               placeholder="ipfs:// or https://"
               value={evidenceUri}
               onChange={(e) => setEvidenceUri(e.target.value)}
               disabled={busy}
             />
-            <div
-              style={{
-                fontSize: 11.5,
-                color: "var(--text-3)",
-                marginTop: 6,
-              }}
-            >
+            <div className="v-field-hint">
               Stored opaquely on-chain (max 256 chars). Defaults to{" "}
               <code>ipfs://demo-evidence</code> if left blank.
             </div>
@@ -457,69 +469,42 @@ export default function EscrowsListView() {
 function Banner({
   kind,
   text,
-  cta,
-  inline,
 }: {
-  kind: "error" | "success" | "info";
+  kind: "error" | "success";
   text: React.ReactNode;
-  cta?: { label: string; onClick: () => void };
-  inline?: boolean;
 }) {
-  const color =
+  const c =
     kind === "error"
       ? { bg: "var(--red-bg)", border: "var(--red-border)", text: "var(--red)" }
-      : kind === "success"
-        ? {
-            bg: "var(--green-bg)",
-            border: "var(--green-border)",
-            text: "var(--green)",
-          }
-        : { bg: "var(--bg)", border: "var(--border)", text: "var(--text-2)" };
+      : {
+          bg: "var(--green-bg)",
+          border: "var(--green-border)",
+          text: "var(--green)",
+        };
   return (
     <div
       style={{
-        background: color.bg,
-        border: `1px solid ${color.border}`,
-        color: color.text,
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        color: c.text,
         padding: "10px 16px",
-        margin: inline ? "0 0 16px" : "16px 24px 0",
+        margin: "16px 24px 0",
         borderRadius: 8,
         fontSize: 13,
-        fontFamily:
-          kind === "error" ? "var(--font-mono), monospace" : "inherit",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        boxShadow: inline ? "var(--shadow-sm)" : undefined,
+        fontFamily: kind === "error" ? "var(--font-mono), monospace" : "inherit",
+        wordBreak: "break-word",
       }}
     >
-      <div>{text}</div>
-      {cta ? (
-        <button className="btn btn-primary btn-sm" onClick={cta.onClick}>
-          {cta.label}
-        </button>
-      ) : null}
+      {text}
     </div>
   );
 }
 
-function SideMetric({
-  label,
-  value,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-}) {
+function SideRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="side-metric">
-      <span className="side-metric-label">{label}</span>
-      <span
-        className="side-metric-val"
-        style={valueColor ? { color: valueColor } : undefined}
-      >
+    <div className="v-side-row">
+      <span style={{ color: "var(--text-2)" }}>{label}</span>
+      <span className="v-mono" style={{ fontWeight: 500 }}>
         {value}
       </span>
     </div>

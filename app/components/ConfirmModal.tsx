@@ -34,9 +34,7 @@ export default function ConfirmModal({
 
   if (!open) return null;
   const confirmClass =
-    confirmTone === "destructive"
-      ? "btn"
-      : "btn btn-primary";
+    confirmTone === "destructive" ? "v-btn" : "v-btn v-btn-primary";
   const confirmStyle: React.CSSProperties =
     confirmTone === "destructive"
       ? {
@@ -94,7 +92,7 @@ export default function ConfirmModal({
           {body}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>
+          <button className="v-btn v-btn-ghost" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
           <button
