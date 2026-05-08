@@ -1,7 +1,7 @@
-import VerdictDashboard from "@/components/VerdictDashboard";
+import LandingView from "@/components/LandingView";
 
 export default function Home() {
-  return <VerdictDashboard />;
+  return <LandingView />;
 }
 
 export const dynamic = "force-dynamic";

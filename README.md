@@ -4,6 +4,8 @@
 
 Autonomous agents are about to spend trillions on each other's services. Verdict provides what agentic commerce forgot to build: a binding, trust-minimized dispute layer. A payer opens an escrow, a merchant delivers, a juror panel rules if delivery is contested — the program pays the winner without human intermediaries. Jurors who vote with the majority earn on-chain reputation, claim-style.
 
+**Concrete target user:** an x402-rail integrator (Stripe Agent Toolkit, Solana Agent Kit) wiring an autonomous research agent (Helios, Olas) to a paid data-MCP endpoint where today a non-delivery dispute would require a human to resolve. Verdict sits one CPI away from that integration and resolves the dispute in seconds without leaving the chain.
+
 This repository is the hackathon MVP: a complete vertical slice from the on-chain Anchor program through a typed TypeScript SDK to a Next.js 14 frontend.
 
 ---
@@ -218,6 +220,23 @@ hackathon submission.
   themselves rather than having `resolve_dispute` iterate the panel. This is
   intentional — a push-based design risks compute-budget blowup as panel
   sizes grow. See the doc-comment in `claim_juror_reward.rs`.
+
+---
+
+## Known gaps
+
+The list above is "scope choices we made". The list below is "things a skeptical judge will rightly point out and we agree with". Cross-referenced from `PITCH_QA.md`.
+
+| Gap | Severity | Path forward |
+|---|---|---|
+| **No bonded-juror system on-chain.** README and UI mention `STAKE 50 USDC EACH`; the program has no `Bond` account or stake/slash instruction. | Medium | Add `bond` field to `Juror`, a `stake_bond` ix, and slash branch in `claim_juror_reward`. |
+| **No appeal mechanism.** A panel verdict closes the escrow atomically. The losing party has no recourse. | High (for production) | Add an `Appealed` status and a higher-stakes second-panel ix with a settlement-window. |
+| **Fixed `PANEL_SIZE = 3`, fixed `bond = 50`.** A 3-juror, $150-bond panel deciding a $250K dispute is economically irrational. | Medium | Log-scale panel size and bond against escrow amount at `raise_dispute` time. |
+| **Evidence URI is opaque on-chain.** No CID pinning verification, no content hash commitment. | Medium | Switch the URI field to a 32-byte CID + verify via Wormhole/Pyth oracle, OR keep the URI and add an off-chain pinning service that the SDK calls. |
+| **Three test-coverage gaps.** No explicit negative test for double-`register_juror`, double-`release_escrow` on a Disputed escrow, or direct-state inspection of the `Refunded` terminal. | Low | Add three tests; the constraints already enforce these — the gap is asserting the failure mode, not the behavior. |
+| **`scripts/setup-demo.ts` not CI-tested on a clean container.** Runs ≥10× locally during this audit but the bring-up sequence has only been verified on machines that already have a Solana toolchain. | Low | Add a GitHub Actions job that runs the `setup-toolchain.sh` swap + the demo script in a fresh Ubuntu container. |
+| **No revenue model in the protocol.** MIT-licensed, no fee switch, no token, no DAO treasury. | Strategic | Out of scope for the MVP; would be revisited as a hosted-juror service or enterprise dispute-intake tool. |
+| **No CI pipeline.** Tests, clippy, and the frontend build are run manually before each commit. | Low | Add a single GitHub Actions workflow that runs the same checks the audit runs. |
 
 ---
 
