@@ -58,9 +58,7 @@ export default function DisputeDetailView({ disputeId }: Props) {
   const confirmVote = () => {
     if (!pendingChoice) return;
     setVoted(pendingChoice);
-    setJurors((prev) =>
-      prev.map((j) => (j.you ? { ...j, vote: pendingChoice } : j)),
-    );
+    setJurors((prev) => prev.map((j) => (j.you ? { ...j, vote: pendingChoice } : j)));
     setPendingChoice(null);
   };
 
@@ -86,18 +84,18 @@ export default function DisputeDetailView({ disputeId }: Props) {
 
   return (
     <>
-      <div className="page-header">
+      <div className="v-page-header">
         <div>
-          <Link href="/disputes" className="page-back">
+          <Link href="/disputes" className="v-page-back">
             ← Disputes
           </Link>
-          <div className="page-title">{disputeId} — Disputed</div>
-          <div className="page-subtitle">
+          <div className="v-page-title">{disputeId} — Disputed</div>
+          <div className="v-page-subtitle">
             Helios Research Agent v. DataSpring MCP · Failure to deliver dataset
           </div>
         </div>
-        <span className="badge badge-gold">
-          <span className="badge-dot" />
+        <span className="v-badge v-badge-gold">
+          <span className="v-badge-dot" />
           Awaiting your vote
         </span>
       </div>
@@ -106,51 +104,114 @@ export default function DisputeDetailView({ disputeId }: Props) {
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 300px",
-          background: "var(--bg-2)",
+          background: "var(--bg-subtle)",
         }}
       >
-        <div className="detail-wrap">
+        <div style={{ maxWidth: 720, margin: "0 auto", padding: 24, width: "100%" }}>
           {/* Timer */}
-          <div className="timer-card">
+          <div
+            className="v-card v-card-lg"
+            style={{
+              padding: "20px 24px",
+              marginBottom: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+            }}
+          >
             <div>
-              <div className="timer-label">Voting closes in</div>
-              <div className="timer-val">{timer}</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-3)",
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: ".06em",
+                  marginBottom: 4,
+                }}
+              >
+                Voting closes in
+              </div>
+              <div
+                className="v-mono"
+                style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-.5px" }}
+              >
+                {timer}
+              </div>
             </div>
-            <div className="timer-right">
+            <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 6 }}>
                 Panel progress
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontFamily: "var(--font-mono), monospace",
-                  fontWeight: 500,
-                }}
-              >
+              <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
                 {votedCount} / 3 voted
               </div>
-              <div className="timer-progress">
+              <div
+                style={{
+                  marginTop: 6,
+                  height: 4,
+                  background: "var(--bg-muted)",
+                  borderRadius: 2,
+                  width: 120,
+                  marginLeft: "auto",
+                }}
+              >
                 <div
-                  className="timer-progress-fill"
-                  style={{ width: `${(votedCount / 3) * 100}%` }}
+                  style={{
+                    height: "100%",
+                    background: "var(--gold)",
+                    borderRadius: 2,
+                    width: `${(votedCount / 3) * 100}%`,
+                  }}
                 />
               </div>
             </div>
           </div>
 
           {/* Case file */}
-          <div className="case-card">
-            <div className="case-card-header">
+          <div className="v-card v-card-lg" style={{ marginBottom: 16, overflow: "hidden" }}>
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 16,
+              }}
+            >
               <div>
-                <div className="case-id">Case № {disputeId} · Opened 5 minutes ago</div>
-                <div className="case-title">Helios Research Agent v. DataSpring MCP</div>
+                <div
+                  className="v-mono"
+                  style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}
+                >
+                  Case № {disputeId} · Opened 5 minutes ago
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-.3px" }}>
+                  Helios Research Agent v. DataSpring MCP
+                </div>
               </div>
-              <div className="case-amount">
-                $2,500.00<span className="case-amount-sub"> USDC</span>
+              <div
+                className="v-mono"
+                style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-.5px" }}
+              >
+                $2,500.00
+                <span style={{ fontSize: 13, color: "var(--text-3)", fontWeight: 400 }}>
+                  {" "}
+                  USDC
+                </span>
               </div>
             </div>
-            <div className="case-body">
-              <div className="case-grid">
+            <div style={{ padding: "20px 24px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 16,
+                  marginBottom: 20,
+                }}
+              >
                 <Field label="Petitioner" value="5xKpT…4wRq" mono />
                 <Field label="Respondent" value="Bq4T…9wLk" mono />
                 <Field
@@ -159,16 +220,38 @@ export default function DisputeDetailView({ disputeId }: Props) {
                 />
                 <Field label="Vault" value="Mn7R…3kPx · confirmed" mono dim />
               </div>
-              <div className="evidence-box">
-                <div className="evidence-label">Evidence URI</div>
-                <div className="evidence-uri">
+              <div
+                style={{
+                  background: "var(--bg-subtle)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  padding: "12px 14px",
+                  marginTop: 16,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--text-3)",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: ".04em",
+                    marginBottom: 6,
+                  }}
+                >
+                  Evidence URI
+                </div>
+                <div
+                  className="v-mono"
+                  style={{ fontSize: 12.5, color: "var(--text-2)", wordBreak: "break-all" }}
+                >
                   ipfs://QmX7vK9wR3mN2pL8qT4sF6hJ1bD5cA0eW/dispute-evidence.json
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Vote — large adjacent buttons, no card header (per design audit) */}
+          {/* Vote buttons — adjacent, no card header */}
           {!resolved ? (
             <div
               style={{
@@ -178,66 +261,44 @@ export default function DisputeDetailView({ disputeId }: Props) {
                 marginBottom: 16,
               }}
             >
-              <button
-                className="vote-btn refund"
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 12,
-                  boxShadow: "var(--shadow-sm)",
-                  padding: "20px 24px",
-                  textAlign: "left",
-                  cursor:
-                    voted || resolving ? "not-allowed" : "pointer",
-                  opacity: voted && voted !== "refund" ? 0.4 : 1,
-                }}
+              <VoteButton
+                label="↩ Refund petitioner"
+                desc="Return $2,500 USDC to payer"
+                tone="refund"
                 onClick={() => requestVote("refund")}
                 disabled={voted !== null || resolving}
-              >
-                <div className="vote-btn-label">↩ Refund petitioner</div>
-                <div className="vote-btn-desc">Return $2,500 USDC to payer</div>
-              </button>
-              <button
-                className="vote-btn release"
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 12,
-                  boxShadow: "var(--shadow-sm)",
-                  padding: "20px 24px",
-                  textAlign: "left",
-                  cursor:
-                    voted || resolving ? "not-allowed" : "pointer",
-                  opacity: voted && voted !== "release" ? 0.4 : 1,
-                }}
+                dim={voted !== null && voted !== "refund"}
+              />
+              <VoteButton
+                label="↗ Release to merchant"
+                desc="Deliver $2,500 USDC to respondent"
+                tone="release"
                 onClick={() => requestVote("release")}
                 disabled={voted !== null || resolving}
-              >
-                <div className="vote-btn-label">↗ Release to merchant</div>
-                <div className="vote-btn-desc">Deliver $2,500 USDC to respondent</div>
-              </button>
+                dim={voted !== null && voted !== "release"}
+              />
             </div>
           ) : null}
 
           {voted !== null && !resolved ? (
             <div
-              className="vote-resolve"
+              className="v-card v-card-lg"
               style={{
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
+                padding: "16px 24px",
                 marginBottom: 16,
-                boxShadow: "var(--shadow-sm)",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
               }}
             >
-              <div className="voted-state">
+              <div style={{ marginRight: "auto", fontSize: 13, color: "var(--text-2)" }}>
                 You voted —{" "}
                 <strong style={{ color: voted === "refund" ? "var(--gold)" : "var(--blue)" }}>
                   {voted === "refund" ? "Refund petitioner" : "Release to merchant"}
                 </strong>
               </div>
               <button
-                className="btn btn-primary"
+                className="v-btn v-btn-primary"
                 disabled={resolving}
                 onClick={requestResolve}
               >
@@ -248,42 +309,101 @@ export default function DisputeDetailView({ disputeId }: Props) {
 
           {resolved ? (
             <div
-              className="verdict-announcement"
+              className="v-card v-card-lg"
               style={{
-                borderRadius: 12,
+                background: "var(--gold-bg)",
                 border: "1px solid var(--gold-border)",
+                padding: 28,
+                textAlign: "center",
                 marginBottom: 16,
               }}
             >
-              <div className="verdict-eyebrow">⚖ Verdict rendered</div>
-              <div className="verdict-text">{verdictText}</div>
-              <div className="verdict-sub">{verdictSub}</div>
+              <div
+                className="v-mono"
+                style={{
+                  fontSize: 12,
+                  color: "var(--gold)",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: ".06em",
+                  marginBottom: 4,
+                }}
+              >
+                ⚖ Verdict rendered
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 4 }}>
+                {verdictText}
+              </div>
+              <div className="v-mono" style={{ fontSize: 13, color: "var(--text-2)" }}>
+                {verdictSub}
+              </div>
             </div>
           ) : null}
 
           {/* Jurors */}
-          <div className="juror-card">
-            <div className="juror-card-header">
-              <div className="section-title">Juror panel</div>
-              <span className="badge badge-gray">3 seated · {votedCount}/3 voted</span>
+          <div className="v-card v-card-lg" style={{ overflow: "hidden" }}>
+            <div
+              style={{
+                padding: "14px 20px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Juror panel</div>
+              <span className="v-badge v-badge-gray">3 seated · {votedCount}/3 voted</span>
             </div>
-            <div className="juror-grid">
-              {jurors.map((j) => (
-                <div className="juror-tile" key={j.name}>
-                  <div className={`juror-avatar${j.you ? " you" : ""}`}>{j.letter}</div>
-                  <div className="juror-name">{j.name}</div>
-                  <div className="juror-rep">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}>
+              {jurors.map((j, i) => (
+                <div
+                  key={j.name}
+                  style={{
+                    padding: 16,
+                    borderRight: i < 2 ? "1px solid var(--border)" : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background: j.you ? "var(--text-1)" : "var(--bg-muted)",
+                      color: j.you ? "#fff" : "var(--text-2)",
+                      border: j.you ? "none" : "1px solid var(--border)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: j.you ? 11 : 12,
+                      fontWeight: 600,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {j.letter}
+                  </div>
+                  <div
+                    className="v-mono"
+                    style={{ fontSize: 12, fontWeight: 500, marginBottom: 2 }}
+                  >
+                    {j.name}
+                  </div>
+                  <div
+                    className="v-mono"
+                    style={{ fontSize: 11.5, color: "var(--text-3)", marginBottom: 8 }}
+                  >
                     {j.rep} · {j.tier}
                   </div>
                   <div
-                    className={
-                      "juror-status " +
-                      (j.vote === "refund"
-                        ? "refund"
-                        : j.vote === "release"
-                          ? "release"
-                          : "awaiting")
-                    }
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 500,
+                      color:
+                        j.vote === "refund"
+                          ? "var(--gold)"
+                          : j.vote === "release"
+                            ? "var(--blue)"
+                            : "var(--text-3)",
+                    }}
                   >
                     {j.vote === "refund"
                       ? "Voted refund"
@@ -297,10 +417,9 @@ export default function DisputeDetailView({ disputeId }: Props) {
           </div>
         </div>
 
-        {/* Side rail */}
-        <aside className="layout-side" style={{ borderTop: "none" }}>
-          <div className="side-section">
-            <div className="side-label">Case timeline</div>
+        <aside className="v-layout-side" style={{ borderTop: "none" }}>
+          <div style={{ marginBottom: 24 }}>
+            <div className="v-side-label">Case timeline</div>
             <Timeline
               items={
                 [
@@ -344,15 +463,13 @@ export default function DisputeDetailView({ disputeId }: Props) {
               }
             />
           </div>
-
-          <div className="sep" />
-
-          <div className="side-section">
-            <div className="side-label">Escrow details</div>
-            <SideMetric label="Amount" value="$2,500" />
-            <SideMetric label="Juror stake" value="50 USDC" />
-            <SideMetric label="Panel" value="3 jurors" />
-            <SideMetric label="Tie-break" value="Release" />
+          <div className="v-sep" />
+          <div>
+            <div className="v-side-label">Escrow details</div>
+            <SideRow label="Amount" value="$2,500" />
+            <SideRow label="Juror stake" value="50 USDC" />
+            <SideRow label="Panel" value="3 jurors" />
+            <SideRow label="Tie-break" value="Release" />
           </div>
         </aside>
       </div>
@@ -367,13 +484,11 @@ export default function DisputeDetailView({ disputeId }: Props) {
             <strong>+1 reputation</strong>.{" "}
             {pendingChoice === "refund" ? (
               <>
-                A <strong>refund</strong> verdict returns $2,500 USDC to the
-                petitioner.
+                A <strong>refund</strong> verdict returns $2,500 USDC to the petitioner.
               </>
             ) : (
               <>
-                A <strong>release</strong> verdict delivers $2,500 USDC to the
-                respondent.
+                A <strong>release</strong> verdict delivers $2,500 USDC to the respondent.
               </>
             )}
           </>
@@ -402,6 +517,49 @@ export default function DisputeDetailView({ disputeId }: Props) {
   );
 }
 
+function VoteButton({
+  label,
+  desc,
+  tone,
+  onClick,
+  disabled,
+  dim,
+}: {
+  label: string;
+  desc: string;
+  tone: "refund" | "release";
+  onClick: () => void;
+  disabled: boolean;
+  dim?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="v-card v-card-lg"
+      style={{
+        padding: "20px 24px",
+        textAlign: "left",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: dim ? 0.4 : 1,
+        background: "var(--bg)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginBottom: 2,
+          color: tone === "refund" ? "var(--gold)" : "var(--blue)",
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--text-3)" }}>{desc}</div>
+    </button>
+  );
+}
+
 interface TimelineItem {
   time: string;
   text: React.ReactNode;
@@ -411,11 +569,13 @@ function Timeline({ items }: { items: TimelineItem[] }) {
   return (
     <>
       {items.map((it, i) => (
-        <div className="feed-item" key={i}>
-          <div className="feed-time">{it.time}</div>
+        <div className="v-feed-item" key={i}>
+          <div className="v-feed-time">{it.time}</div>
           <div>
-            <div className="feed-text">{it.text}</div>
-            <div className="feed-sig">{it.sig}</div>
+            <div style={{ color: "var(--text-2)", lineHeight: 1.5 }}>{it.text}</div>
+            <div className="v-mono" style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
+              {it.sig}
+            </div>
           </div>
         </div>
       ))}
@@ -436,10 +596,24 @@ function Field({
 }) {
   return (
     <div>
-      <div className="case-field-label">{label}</div>
       <div
-        className={`case-field-val${mono ? " mono" : ""}`}
-        style={dim ? { color: "var(--text-3)" } : undefined}
+        style={{
+          fontSize: 11.5,
+          color: "var(--text-3)",
+          fontWeight: 500,
+          textTransform: "uppercase",
+          letterSpacing: ".04em",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        className={mono ? "v-mono" : ""}
+        style={{
+          fontSize: mono ? 13 : 14,
+          color: dim ? "var(--text-3)" : "var(--text-1)",
+        }}
       >
         {value}
       </div>
@@ -447,11 +621,11 @@ function Field({
   );
 }
 
-function SideMetric({ label, value }: { label: string; value: string }) {
+function SideRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="side-metric">
-      <span className="side-metric-label">{label}</span>
-      <span className="side-metric-val">{value}</span>
+    <div className="v-side-row">
+      <span style={{ color: "var(--text-2)" }}>{label}</span>
+      <span className="v-mono" style={{ fontWeight: 500 }}>{value}</span>
     </div>
   );
 }

@@ -3,17 +3,13 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { Providers } from "@/components/providers/Providers";
-import { Nav } from "@/components/Nav";
+import { GlobalNav } from "@/components/GlobalNav";
 
-// "Geist" / "Geist Mono" referenced in the design mockup are not exported by
-// next/font/google in Next 14.2.35 — Inter + JetBrains Mono are the closest
-// shipping substitutes. Variable names match the mockup so all CSS lookups
-// for var(--font-geist) and var(--font-mono) work unchanged.
-const geist = Inter({
-  subsets: ["latin"],
-  variable: "--font-geist",
-  display: "swap",
-});
+// Geist / Geist_Mono are not exported by next/font/google in Next 14.2.35.
+// Inter + JetBrains_Mono are the closest shipping substitutes; they keep the
+// same --font-geist / --font-mono CSS variable names so every globals.css
+// lookup works unchanged.
+const geist = Inter({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
 const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
@@ -30,10 +26,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable} ${mono.variable}`}>
-      <body>
+      <body style={{ paddingTop: "52px" }}>
         <Providers>
-          <Nav />
-          <div className="app-body">{children}</div>
+          <GlobalNav />
+          {children}
         </Providers>
       </body>
     </html>

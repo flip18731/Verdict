@@ -32,14 +32,13 @@ interface Props {
 }
 
 export default function DisputeDetailLive({ disputePkStr }: Props) {
-  // Re-derive the PublicKey here — class instances don't survive the server
-  // boundary, so the parent route hands us the raw string.
-  const disputePk = useMemo(() => new PublicKey(disputePkStr), [disputePkStr]);
   const wallet = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
   const program = useVerdictProgram();
   const qc = useQueryClient();
+
+  const disputePk = useMemo(() => new PublicKey(disputePkStr), [disputePkStr]);
 
   const [pendingChoice, setPendingChoice] = useState<VoteChoice | null>(null);
   const [confirmingResolve, setConfirmingResolve] = useState(false);
@@ -53,8 +52,6 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
     return () => clearInterval(id);
   }, []);
 
-  // Pull the dispute account directly. We don't use the existing list query
-  // because that returns Open disputes only — a resolved one would 404 here.
   const disputeQ = useQuery({
     queryKey: ["dispute:detail", disputePk.toBase58()],
     enabled: !!program,
@@ -66,7 +63,6 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
     },
   });
 
-  // Fetch the linked escrow once we have the dispute (need it for resolve).
   const escrowPk = disputeQ.data?.escrow as PublicKey | undefined;
   const escrowQ = useQuery({
     queryKey: ["escrow:detail", escrowPk?.toBase58() ?? "none"],
@@ -82,7 +78,6 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
   const dispute = disputeQ.data;
   const escrow = escrowQ.data;
 
-  // dispute.status is an Anchor enum: { open: {} } | { resolved: {} }
   const isResolved = !!dispute && "resolved" in (dispute.status as object);
   const votingEndsAt = dispute ? Number(dispute.votingEndsAt) : 0;
   const remaining = Math.max(0, votingEndsAt - now);
@@ -107,10 +102,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
       const ix = await castVoteIx(program, {
         authority: wallet.publicKey,
         dispute: disputePk,
-        choice:
-          pendingChoice === "refund"
-            ? DisputeOutcome.refund
-            : DisputeOutcome.release,
+        choice: pendingChoice === "refund" ? DisputeOutcome.refund : DisputeOutcome.release,
       });
       await sendTx({ connection, wallet, ixs: [ix] });
       await Promise.all([
@@ -143,14 +135,12 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
       const mint = escrow.mint as PublicKey;
       const payerAta = getAssociatedTokenAddressSync(mint, payer);
       const merchantAta = getAssociatedTokenAddressSync(mint, merchant);
-      // Either ATA may not exist — bootstrap idempotently so resolve can
-      // always credit the winner.
       for (const [owner, ata] of [
         [payer, payerAta] as const,
         [merchant, merchantAta] as const,
       ]) {
-        const info = await connection.getAccountInfo(ata);
-        if (!info) {
+        const accInfo = await connection.getAccountInfo(ata);
+        if (!accInfo) {
           ixs.push(
             createAssociatedTokenAccountInstruction(
               wallet.publicKey,
@@ -198,19 +188,21 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
   if (!wallet.publicKey) {
     return (
       <>
-        <div className="page-header">
+        <div className="v-page-header">
           <div>
-            <Link href="/disputes" className="page-back">
+            <Link href="/disputes" className="v-page-back">
               ← Disputes
             </Link>
-            <div className="page-title">Dispute · {disputePk.toBase58().slice(0, 8)}…</div>
-            <div className="page-subtitle">Connect a wallet to vote</div>
+            <div className="v-page-title">
+              Dispute · <span className="v-mono">{disputePk.toBase58().slice(0, 8)}…</span>
+            </div>
+            <div className="v-page-subtitle">Connect a wallet to vote</div>
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setVisible(true)}>
+          <button className="v-btn v-btn-primary v-btn-sm" onClick={() => setVisible(true)}>
             Connect wallet
           </button>
         </div>
-        <div style={{ padding: 48, textAlign: "center", color: "var(--text-3)" }}>
+        <div className="v-empty">
           Connect a wallet to view the case file and cast your vote.
         </div>
       </>
@@ -218,15 +210,11 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
   }
 
   if (disputeQ.isLoading || (escrowPk && escrowQ.isLoading)) {
-    return (
-      <div style={{ padding: 48, textAlign: "center", color: "var(--text-3)" }}>
-        Loading case file from chain…
-      </div>
-    );
+    return <div className="v-empty">Loading case file from chain…</div>;
   }
   if (disputeQ.error || !dispute) {
     return (
-      <div style={{ padding: 48, textAlign: "center", color: "var(--red)" }}>
+      <div className="v-empty" style={{ color: "var(--red)" }}>
         Could not load this dispute. {(disputeQ.error as Error)?.message ?? ""}
       </div>
     );
@@ -237,20 +225,20 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
 
   return (
     <>
-      <div className="page-header">
+      <div className="v-page-header">
         <div>
-          <Link href="/disputes" className="page-back">
+          <Link href="/disputes" className="v-page-back">
             ← Disputes
           </Link>
-          <div className="page-title">
-            Dispute · {disputePk.toBase58().slice(0, 8)}…
+          <div className="v-page-title">
+            Dispute · <span className="v-mono">{disputePk.toBase58().slice(0, 8)}…</span>
           </div>
-          <div className="page-subtitle">
+          <div className="v-page-subtitle">
             {status} · {tally} · {jurorsVoted}/{jurorsSeated} voted
           </div>
         </div>
-        <span className={isResolved ? "badge badge-green" : "badge badge-gold"}>
-          <span className="badge-dot" />
+        <span className={isResolved ? "v-badge v-badge-green" : "v-badge v-badge-gold"}>
+          <span className="v-badge-dot" />
           {isResolved ? "Resolved" : "Awaiting verdict"}
         </span>
       </div>
@@ -262,63 +250,117 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 300px",
-          background: "var(--bg-2)",
+          background: "var(--bg-subtle)",
         }}
       >
-        <div className="detail-wrap">
+        <div style={{ maxWidth: 720, margin: "0 auto", padding: 24, width: "100%" }}>
           {/* Timer */}
-          <div className="timer-card">
+          <div
+            className="v-card v-card-lg"
+            style={{
+              padding: "20px 24px",
+              marginBottom: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+            }}
+          >
             <div>
-              <div className="timer-label">
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-3)",
+                  fontWeight: 500,
+                  textTransform: "uppercase",
+                  letterSpacing: ".06em",
+                  marginBottom: 4,
+                }}
+              >
                 {isResolved ? "Voting closed" : "Voting closes in"}
               </div>
-              <div className="timer-val">{isResolved ? "—" : timer}</div>
+              <div
+                className="v-mono"
+                style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-.5px" }}
+              >
+                {isResolved ? "—" : timer}
+              </div>
             </div>
-            <div className="timer-right">
+            <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 6 }}>
                 Panel progress
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontFamily: "var(--font-mono), monospace",
-                  fontWeight: 500,
-                }}
-              >
+              <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
                 {jurorsVoted} / {jurorsSeated} voted
               </div>
-              <div className="timer-progress">
+              <div
+                style={{
+                  marginTop: 6,
+                  height: 4,
+                  background: "var(--bg-muted)",
+                  borderRadius: 2,
+                  width: 120,
+                  marginLeft: "auto",
+                }}
+              >
                 <div
-                  className="timer-progress-fill"
-                  style={{ width: `${(jurorsVoted / jurorsSeated) * 100}%` }}
+                  style={{
+                    height: "100%",
+                    background: "var(--gold)",
+                    borderRadius: 2,
+                    width: `${(jurorsVoted / jurorsSeated) * 100}%`,
+                  }}
                 />
               </div>
             </div>
           </div>
 
           {/* Case file */}
-          <div className="case-card">
-            <div className="case-card-header">
+          <div className="v-card v-card-lg" style={{ marginBottom: 16, overflow: "hidden" }}>
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 16,
+              }}
+            >
               <div>
-                <div className="case-id">
+                <div
+                  className="v-mono"
+                  style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}
+                >
                   Case № {disputePk.toBase58().slice(0, 8)}…
                 </div>
-                <div className="case-title">
+                <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-.3px" }}>
                   {escrow
                     ? `${(escrow.payer as PublicKey).toBase58().slice(0, 6)} → ${(escrow.merchant as PublicKey).toBase58().slice(0, 6)}`
                     : "Loading…"}
                 </div>
               </div>
-              <div className="case-amount">
-                {escrow
-                  ? `${(Number(escrow.amount) / 1e6).toFixed(2)}`
-                  : "—"}
-                <span className="case-amount-sub"> USDC</span>
+              <div
+                className="v-mono"
+                style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-.5px" }}
+              >
+                {escrow ? `${(Number(escrow.amount) / 1e6).toFixed(2)}` : "—"}
+                <span style={{ fontSize: 13, color: "var(--text-3)", fontWeight: 400 }}>
+                  {" "}
+                  USDC
+                </span>
               </div>
             </div>
-            <div className="case-body">
+            <div style={{ padding: "20px 24px" }}>
               {escrow ? (
-                <div className="case-grid">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 16,
+                    marginBottom: 20,
+                  }}
+                >
                   <Field
                     label="Petitioner"
                     value={(escrow.payer as PublicKey).toBase58()}
@@ -352,16 +394,38 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
                   />
                 </div>
               ) : null}
-              <div className="evidence-box">
-                <div className="evidence-label">Evidence URI</div>
-                <div className="evidence-uri">
+              <div
+                style={{
+                  background: "var(--bg-subtle)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  padding: "12px 14px",
+                  marginTop: 16,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--text-3)",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: ".04em",
+                    marginBottom: 6,
+                  }}
+                >
+                  Evidence URI
+                </div>
+                <div
+                  className="v-mono"
+                  style={{ fontSize: 12.5, color: "var(--text-2)", wordBreak: "break-all" }}
+                >
                   {dispute.evidenceUri || "(none provided)"}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Vote / Resolve actions */}
+          {/* Vote actions */}
           {!isResolved ? (
             <div
               style={{
@@ -371,84 +435,41 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
                 marginBottom: 16,
               }}
             >
-              <button
-                className="vote-btn refund"
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 12,
-                  boxShadow: "var(--shadow-sm)",
-                  padding: "20px 24px",
-                  textAlign: "left",
-                  cursor: panelFull || remaining === 0 ? "not-allowed" : "pointer",
-                  opacity: panelFull || remaining === 0 ? 0.5 : 1,
-                }}
+              <VoteButton
+                label="↩ Refund petitioner"
+                desc={`Return ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to payer`}
+                tone="refund"
                 onClick={() => setPendingChoice("refund")}
                 disabled={busy || panelFull || remaining === 0}
-              >
-                <div className="vote-btn-label">↩ Refund petitioner</div>
-                <div className="vote-btn-desc">
-                  Return{" "}
-                  {escrow
-                    ? `${(Number(escrow.amount) / 1e6).toFixed(2)} USDC`
-                    : "the vault"}{" "}
-                  to payer
-                </div>
-              </button>
-              <button
-                className="vote-btn release"
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 12,
-                  boxShadow: "var(--shadow-sm)",
-                  padding: "20px 24px",
-                  textAlign: "left",
-                  cursor: panelFull || remaining === 0 ? "not-allowed" : "pointer",
-                  opacity: panelFull || remaining === 0 ? 0.5 : 1,
-                }}
+              />
+              <VoteButton
+                label="↗ Release to merchant"
+                desc={`Deliver ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to respondent`}
+                tone="release"
                 onClick={() => setPendingChoice("release")}
                 disabled={busy || panelFull || remaining === 0}
-              >
-                <div className="vote-btn-label">↗ Release to merchant</div>
-                <div className="vote-btn-desc">
-                  Deliver{" "}
-                  {escrow
-                    ? `${(Number(escrow.amount) / 1e6).toFixed(2)} USDC`
-                    : "the vault"}{" "}
-                  to respondent
-                </div>
-              </button>
+              />
             </div>
           ) : null}
 
           {canResolve ? (
             <div
+              className="v-card v-card-lg"
               style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-                marginBottom: 16,
                 padding: "16px 24px",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
+                marginBottom: 16,
+                display: "flex",
                 alignItems: "center",
+                gap: 12,
               }}
             >
-              <div
-                style={{
-                  marginRight: "auto",
-                  fontSize: 13,
-                  color: "var(--text-2)",
-                }}
-              >
+              <div style={{ marginRight: "auto", fontSize: 13, color: "var(--text-2)" }}>
                 {panelFull
                   ? "Panel is full. Verdict can be rendered now."
                   : "Voting window closed. Verdict can be rendered now."}
               </div>
               <button
-                className="btn btn-primary"
+                className="v-btn v-btn-primary"
                 onClick={() => setConfirmingResolve(true)}
                 disabled={busy}
               >
@@ -459,35 +480,52 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
 
           {isResolved ? (
             <div
-              className="verdict-announcement"
-              style={{ borderRadius: 12, border: "1px solid var(--gold-border)" }}
+              className="v-card v-card-lg"
+              style={{
+                background: "var(--gold-bg)",
+                border: "1px solid var(--gold-border)",
+                padding: 28,
+                textAlign: "center",
+              }}
             >
-              <div className="verdict-eyebrow">⚖ Verdict rendered</div>
-              <div className="verdict-text">
+              <div
+                className="v-mono"
+                style={{
+                  fontSize: 12,
+                  color: "var(--gold)",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: ".06em",
+                  marginBottom: 4,
+                }}
+              >
+                ⚖ Verdict rendered
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 4 }}>
                 {dispute.outcome && "refund" in (dispute.outcome as object)
                   ? "Refund — funds returned to petitioner"
                   : "Release — funds delivered to merchant"}
               </div>
-              <div className="verdict-sub">
+              <div className="v-mono" style={{ fontSize: 13, color: "var(--text-2)" }}>
                 {dispute.votesForRefund} refund · {dispute.votesForRelease} release · escrow settled on-chain
               </div>
             </div>
           ) : null}
         </div>
 
-        <aside className="layout-side" style={{ borderTop: "none" }}>
-          <div className="side-section">
-            <div className="side-label">Dispute details</div>
-            <SideMetric
+        <aside className="v-layout-side" style={{ borderTop: "none" }}>
+          <div>
+            <div className="v-side-label">Dispute details</div>
+            <SideRow
               label="PDA"
               value={`${disputePk.toBase58().slice(0, 4)}…${disputePk.toBase58().slice(-4)}`}
             />
-            <SideMetric
+            <SideRow
               label="Tally"
               value={`${dispute.votesForRefund} / ${dispute.votesForRelease}`}
             />
-            <SideMetric label="Panel" value={`${jurorsSeated} jurors`} />
-            <SideMetric label="Tie-break" value="Release" />
+            <SideRow label="Panel" value={`${jurorsSeated} jurors`} />
+            <SideRow label="Tie-break" value="Release" />
           </div>
         </aside>
       </div>
@@ -514,8 +552,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
         body={
           <>
             This tallies the panel&rsquo;s votes and atomically settles the
-            escrow on-chain. Once rendered, the verdict is final — there is no
-            appeal.
+            escrow on-chain. Once rendered, the verdict is final — there is no appeal.
           </>
         }
         confirmLabel="Render verdict"
@@ -524,6 +561,47 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
         busy={busy}
       />
     </>
+  );
+}
+
+function VoteButton({
+  label,
+  desc,
+  tone,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  desc: string;
+  tone: "refund" | "release";
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="v-card v-card-lg"
+      style={{
+        padding: "20px 24px",
+        textAlign: "left",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        background: "var(--bg)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginBottom: 2,
+          color: tone === "refund" ? "var(--gold)" : "var(--blue)",
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--text-3)" }}>{desc}</div>
+    </button>
   );
 }
 
@@ -552,8 +630,7 @@ function Banner({
         margin: "16px 24px 0",
         borderRadius: 8,
         fontSize: 13,
-        fontFamily:
-          kind === "error" ? "var(--font-mono), monospace" : "inherit",
+        fontFamily: kind === "error" ? "var(--font-mono), monospace" : "inherit",
         wordBreak: "break-word",
       }}
     >
@@ -578,10 +655,24 @@ function Field({
   const valueNode = mono ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
   return (
     <div>
-      <div className="case-field-label">{label}</div>
       <div
-        className={`case-field-val${mono ? " mono" : ""}`}
-        style={dim ? { color: "var(--text-3)" } : undefined}
+        style={{
+          fontSize: 11.5,
+          color: "var(--text-3)",
+          fontWeight: 500,
+          textTransform: "uppercase",
+          letterSpacing: ".04em",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        className={mono ? "v-mono" : ""}
+        style={{
+          fontSize: mono ? 13 : 14,
+          color: dim ? "var(--text-3)" : "var(--text-1)",
+        }}
       >
         {href ? (
           <a
@@ -600,11 +691,11 @@ function Field({
   );
 }
 
-function SideMetric({ label, value }: { label: string; value: string }) {
+function SideRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="side-metric">
-      <span className="side-metric-label">{label}</span>
-      <span className="side-metric-val">{value}</span>
+    <div className="v-side-row">
+      <span style={{ color: "var(--text-2)" }}>{label}</span>
+      <span className="v-mono" style={{ fontWeight: 500 }}>{value}</span>
     </div>
   );
 }
