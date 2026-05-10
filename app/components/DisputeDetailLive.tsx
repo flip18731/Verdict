@@ -22,7 +22,8 @@ import {
 } from "@/lib/verdict-sdk";
 import { useVerdictProgram } from "@/lib/useVerdictProgram";
 import { sendTx, TxError } from "@/lib/sendTx";
-import { explorerAccountUrl } from "@/lib/config";
+import { explorerAccountUrl, explorerTxUrl } from "@/lib/config";
+import { shortAddr, formatUsdc, countdown } from "@/lib/format";
 import ConfirmModal from "./ConfirmModal";
 
 type VoteChoice = "refund" | "release";
@@ -44,7 +45,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
   const [confirmingResolve, setConfirmingResolve] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ text: string; sig?: string } | null>(null);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
@@ -86,12 +87,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
   const panelFull = jurorsVoted >= jurorsSeated;
   const canResolve = !isResolved && (remaining === 0 || panelFull);
 
-  const timer = useMemo(() => {
-    const h = Math.floor(remaining / 3600);
-    const m = Math.floor((remaining % 3600) / 60);
-    const s = remaining % 60;
-    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  }, [remaining]);
+  const timer = useMemo(() => countdown(remaining), [remaining]);
 
   async function executeVote() {
     if (!program || !wallet.publicKey || !pendingChoice) return;
@@ -104,13 +100,13 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
         dispute: disputePk,
         choice: pendingChoice === "refund" ? DisputeOutcome.refund : DisputeOutcome.release,
       });
-      await sendTx({ connection, wallet, ixs: [ix] });
+      const sig = await sendTx({ connection, wallet, ixs: [ix] });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["dispute:detail", disputePk.toBase58()] }),
         qc.invalidateQueries({ queryKey: ["disputes:open"] }),
         qc.invalidateQueries({ queryKey: ["juror"] }),
       ]);
-      setInfo(`Vote recorded: ${pendingChoice}.`);
+      setInfo({ text: `Vote recorded: ${pendingChoice}.`, sig });
       setPendingChoice(null);
     } catch (err) {
       setError(
@@ -164,7 +160,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
           payerRentRecipient: payer,
         }),
       );
-      await sendTx({ connection, wallet, ixs });
+      const sig = await sendTx({ connection, wallet, ixs });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["dispute:detail", disputePk.toBase58()] }),
         qc.invalidateQueries({ queryKey: ["escrow:detail", escrowPk.toBase58()] }),
@@ -172,7 +168,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
         qc.invalidateQueries({ queryKey: ["disputes:resolved"] }),
         qc.invalidateQueries({ queryKey: ["escrows"] }),
       ]);
-      setInfo("Verdict rendered. Vault settled atomically.");
+      setInfo({ text: "Verdict rendered. Vault settled atomically.", sig });
       setConfirmingResolve(false);
     } catch (err) {
       setError(
@@ -194,7 +190,8 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
               ← Disputes
             </Link>
             <div className="v-page-title">
-              Dispute · <span className="v-mono">{disputePk.toBase58().slice(0, 8)}…</span>
+              Dispute ·{" "}
+              <span className="v-mono">{shortAddr(disputePk)}</span>
             </div>
             <div className="v-page-subtitle">Connect a wallet to vote</div>
           </div>
@@ -202,8 +199,27 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
             Connect wallet
           </button>
         </div>
-        <div className="v-empty">
-          Connect a wallet to view the case file and cast your vote.
+        <div
+          className="v-card"
+          style={{
+            margin: "32px auto",
+            maxWidth: 440,
+            padding: 32,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 32, marginBottom: 12 }}>⚖</div>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+            Connect your wallet
+          </div>
+          <div
+            style={{ fontSize: 13, color: "var(--text-2)", marginBottom: 16, lineHeight: 1.6 }}
+          >
+            Connect a wallet to view the case file and cast your vote on-chain.
+          </div>
+          <button className="v-btn v-btn-primary" onClick={() => setVisible(true)}>
+            Connect wallet
+          </button>
         </div>
       </>
     );
@@ -231,7 +247,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
             ← Disputes
           </Link>
           <div className="v-page-title">
-            Dispute · <span className="v-mono">{disputePk.toBase58().slice(0, 8)}…</span>
+            Dispute · <span className="v-mono">{shortAddr(disputePk)}</span>
           </div>
           <div className="v-page-subtitle">
             {status} · {tally} · {jurorsVoted}/{jurorsSeated} voted
@@ -244,7 +260,35 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
       </div>
 
       {error ? <Banner kind="error" text={error} /> : null}
-      {info ? <Banner kind="success" text={info} /> : null}
+      {info ? (
+        <Banner
+          kind="success"
+          text={
+            <>
+              {info.text}
+              {info.sig ? (
+                <>
+                  {" "}
+                  <a
+                    href={explorerTxUrl(info.sig)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="v-mono"
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-3)",
+                      textDecoration: "underline",
+                      marginLeft: 6,
+                    }}
+                  >
+                    {shortAddr(info.sig)}
+                  </a>
+                </>
+              ) : null}
+            </>
+          }
+        />
+      ) : null}
 
       <div
         style={{
@@ -342,19 +386,24 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
                   className="v-mono"
                   style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}
                 >
-                  Case № {disputePk.toBase58().slice(0, 8)}…
+                  Case № {shortAddr(disputePk)}
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-.3px" }}>
-                  {escrow
-                    ? `${(escrow.payer as PublicKey).toBase58().slice(0, 6)} → ${(escrow.merchant as PublicKey).toBase58().slice(0, 6)}`
-                    : "Loading…"}
+                  {escrow ? (
+                    <>
+                      <span className="v-mono">{shortAddr(escrow.payer as PublicKey)}</span> →{" "}
+                      <span className="v-mono">{shortAddr(escrow.merchant as PublicKey)}</span>
+                    </>
+                  ) : (
+                    "Loading…"
+                  )}
                 </div>
               </div>
               <div
                 className="v-mono"
                 style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-.5px" }}
               >
-                {escrow ? `${(Number(escrow.amount) / 1e6).toFixed(2)}` : "—"}
+                {escrow ? formatUsdc(escrow.amount) : "—"}
                 <span style={{ fontSize: 13, color: "var(--text-3)", fontWeight: 400 }}>
                   {" "}
                   USDC
@@ -429,7 +478,22 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
                   className="v-mono"
                   style={{ fontSize: 12.5, color: "var(--text-2)", wordBreak: "break-all" }}
                 >
-                  {dispute.evidenceUri || "(none provided)"}
+                  {dispute.evidenceUri ? (
+                    isClickableUri(dispute.evidenceUri) ? (
+                      <a
+                        href={resolveUri(dispute.evidenceUri)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "var(--blue)", textDecoration: "underline" }}
+                      >
+                        {dispute.evidenceUri}
+                      </a>
+                    ) : (
+                      dispute.evidenceUri
+                    )
+                  ) : (
+                    "(none provided)"
+                  )}
                 </div>
               </div>
             </div>
@@ -461,14 +525,14 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <VoteButton
                   label="↩ Refund petitioner"
-                  desc={`Return ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to payer`}
+                  desc={`Return ${escrow ? formatUsdc(escrow.amount) + " USDC" : "the vault"} to payer`}
                   tone="refund"
                   onClick={() => setPendingChoice("refund")}
                   disabled={busy || panelFull || remaining === 0}
                 />
                 <VoteButton
                   label="↗ Release to merchant"
-                  desc={`Deliver ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to respondent`}
+                  desc={`Deliver ${escrow ? formatUsdc(escrow.amount) + " USDC" : "the vault"} to respondent`}
                   tone="release"
                   onClick={() => setPendingChoice("release")}
                   disabled={busy || panelFull || remaining === 0}
@@ -541,10 +605,7 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
         <aside className="v-layout-side" style={{ borderTop: "none" }}>
           <div>
             <div className="v-side-label">Dispute details</div>
-            <SideRow
-              label="PDA"
-              value={`${disputePk.toBase58().slice(0, 4)}…${disputePk.toBase58().slice(-4)}`}
-            />
+            <SideRow label="PDA" value={shortAddr(disputePk)} />
             <SideRow
               label="Tally"
               value={`${dispute.votesForRefund} / ${dispute.votesForRelease}`}
@@ -680,7 +741,7 @@ function Field({
   dim?: boolean;
   href?: string;
 }) {
-  const valueNode = mono ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
+  const valueNode = mono ? shortAddr(value) : value;
   return (
     <div>
       <div
@@ -726,4 +787,18 @@ function SideRow({ label, value }: { label: string; value: string }) {
       <span className="v-mono" style={{ fontWeight: 500 }}>{value}</span>
     </div>
   );
+}
+
+function isClickableUri(uri: string): boolean {
+  return /^(https?:|ipfs:|ar:)/i.test(uri);
+}
+
+function resolveUri(uri: string): string {
+  if (uri.startsWith("ipfs://")) {
+    return `https://ipfs.io/ipfs/${uri.slice("ipfs://".length)}`;
+  }
+  if (uri.startsWith("ar://")) {
+    return `https://arweave.net/${uri.slice("ar://".length)}`;
+  }
+  return uri;
 }

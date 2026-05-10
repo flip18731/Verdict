@@ -43,18 +43,26 @@ export default function CreateEscrowView() {
   const [signature, setSignature] = useState<string | null>(null);
 
   // ── Step validation ─────────────────────────────────────────────
+  const merchantTrimmed = merchant.trim();
+  const merchantTouched = merchantTrimmed.length > 0;
   const merchantValid = (() => {
-    const trimmed = merchant.trim();
-    if (trimmed.length < 32 || trimmed.length > 44) return false;
+    if (merchantTrimmed.length < 32 || merchantTrimmed.length > 44) return false;
     try {
-      new PublicKey(trimmed);
+      new PublicKey(merchantTrimmed);
       return true;
     } catch {
       return false;
     }
   })();
+  const merchantError = merchantTouched && !merchantValid
+    ? "Invalid Solana wallet address."
+    : null;
   const amountNum = parseFloat(amount);
+  const amountTouched = amount.length > 0;
   const amountValid = Number.isFinite(amountNum) && amountNum > 0;
+  const amountError = amountTouched && !amountValid
+    ? "Amount must be greater than 0."
+    : null;
 
   // ── handleSubmit (unchanged on-chain logic) ─────────────────────
   async function handleSubmit() {
@@ -166,15 +174,19 @@ export default function CreateEscrowView() {
             </div>
             <label className="v-field-label">Merchant wallet address</label>
             <input
-              className="v-field-input v-mono"
+              className={`v-field-input v-mono${merchantError ? " error" : ""}`}
               placeholder="Public key (base58)"
               value={merchant}
               onChange={(e) => setMerchant(e.target.value)}
               autoFocus
             />
-            <div className="v-field-hint">
-              The service provider who will receive payment if you release the escrow.
-            </div>
+            {merchantError ? (
+              <div className="field-error">{merchantError}</div>
+            ) : (
+              <div className="v-field-hint">
+                The service provider who will receive payment if you release the escrow.
+              </div>
+            )}
             <div className="wizard-actions">
               <span />
               <button
@@ -197,7 +209,7 @@ export default function CreateEscrowView() {
             </div>
             <label className="v-field-label">Amount (test USDC)</label>
             <input
-              className="v-field-input v-mono"
+              className={`v-field-input v-mono${amountError ? " error" : ""}`}
               type="number"
               min={1}
               step="any"
@@ -206,6 +218,9 @@ export default function CreateEscrowView() {
               onChange={(e) => setAmount(e.target.value)}
               autoFocus
             />
+            {amountError ? (
+              <div className="field-error">{amountError}</div>
+            ) : null}
             {amountValid ? (
               <div
                 className="v-mono"
@@ -387,7 +402,16 @@ export default function CreateEscrowView() {
                   onClick={handleSubmit}
                   disabled={busy}
                 >
-                  {busy ? "Creating…" : connected ? "Create escrow" : "Connect wallet"}
+                  {busy ? (
+                    <>
+                      <span className="spinner" />
+                      Confirming…
+                    </>
+                  ) : connected ? (
+                    "Create escrow"
+                  ) : (
+                    "Connect wallet"
+                  )}
                 </button>
               )}
             </div>

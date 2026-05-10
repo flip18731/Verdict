@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { shortAddr } from "@/lib/format";
 
 const LINKS = [
   { href: "/disputes", label: "Disputes" },
@@ -27,7 +28,7 @@ export function GlobalNav() {
   };
 
   const pub = publicKey?.toBase58();
-  const label = pub ? `${pub.slice(0, 4)}…${pub.slice(-4)}` : "Connect Wallet";
+  const label = pub ? shortAddr(pub) : "Connect Wallet";
 
   return (
     <nav className="v-nav">

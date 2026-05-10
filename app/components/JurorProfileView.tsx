@@ -13,6 +13,8 @@ import {
   findVotePda,
   registerJurorIx,
 } from "@/lib/verdict-sdk";
+import { shortAddr } from "@/lib/format";
+import { explorerTxUrl } from "@/lib/config";
 import EmptyState from "./EmptyState";
 
 interface CaseRow {
@@ -55,7 +57,7 @@ export default function JurorProfileView() {
   const [registering, setRegistering] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ text: string; sig?: string } | null>(null);
 
   const connected = !!wallet.publicKey;
   const isRegistered = !!juror.data?.account;
@@ -69,8 +71,9 @@ export default function JurorProfileView() {
     setRegistering(true);
     try {
       const ix = await registerJurorIx(program, wallet.publicKey);
-      await sendTx({ connection, wallet, ixs: [ix] });
+      const sig = await sendTx({ connection, wallet, ixs: [ix] });
       await qc.invalidateQueries({ queryKey: ["juror"] });
+      setInfo({ text: "Registered as a juror.", sig });
     } catch (err) {
       setError(
         err instanceof TxError
@@ -109,11 +112,12 @@ export default function JurorProfileView() {
         qc.invalidateQueries({ queryKey: ["juror"] }),
         qc.invalidateQueries({ queryKey: ["disputes:resolved"] }),
       ]);
-      setInfo(
-        successes === 0
-          ? "No claimable rewards found for this wallet."
-          : `Claimed ${successes} reward${successes === 1 ? "" : "s"}.`,
-      );
+      setInfo({
+        text:
+          successes === 0
+            ? "No claimable rewards found for this wallet."
+            : `Claimed ${successes} reward${successes === 1 ? "" : "s"}.`,
+      });
     } catch (err) {
       setError(
         err instanceof TxError
@@ -133,10 +137,7 @@ export default function JurorProfileView() {
           <div className="v-page-subtitle">
             {connected ? (
               <>
-                <span className="v-mono">
-                  {wallet.publicKey?.toBase58().slice(0, 6)}…
-                  {wallet.publicKey?.toBase58().slice(-4)}
-                </span>{" "}
+                <span className="v-mono">{shortAddr(wallet.publicKey!)}</span>{" "}
                 ·{" "}
                 {isRegistered
                   ? `${repValue} reputation · ${casesVoted} cases voted`
@@ -153,7 +154,14 @@ export default function JurorProfileView() {
             onClick={handleRegister}
             disabled={registering || !program}
           >
-            {registering ? "Registering…" : "Register as juror"}
+            {registering ? (
+              <>
+                <span className="spinner" />
+                Confirming…
+              </>
+            ) : (
+              "Register as juror"
+            )}
           </button>
         ) : connected ? (
           <button
@@ -161,7 +169,14 @@ export default function JurorProfileView() {
             onClick={handleClaimAll}
             disabled={claiming || !program}
           >
-            {claiming ? "Claiming…" : "Claim $42.00"}
+            {claiming ? (
+              <>
+                <span className="spinner" />
+                Claiming…
+              </>
+            ) : (
+              "Claim $42.00"
+            )}
           </button>
         ) : (
           <button className="v-btn v-btn-primary v-btn-sm" onClick={() => setVisible(true)}>
@@ -171,7 +186,35 @@ export default function JurorProfileView() {
       </div>
 
       {error ? <Banner kind="error" text={error} /> : null}
-      {info ? <Banner kind="success" text={info} /> : null}
+      {info ? (
+        <Banner
+          kind="success"
+          text={
+            <>
+              {info.text}
+              {info.sig ? (
+                <>
+                  {" "}
+                  <a
+                    href={explorerTxUrl(info.sig)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="v-mono"
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-3)",
+                      textDecoration: "underline",
+                      marginLeft: 6,
+                    }}
+                  >
+                    {shortAddr(info.sig)}
+                  </a>
+                </>
+              ) : null}
+            </>
+          }
+        />
+      ) : null}
 
       <div
         style={{
@@ -201,11 +244,13 @@ export default function JurorProfileView() {
                 {connected && isRegistered ? casesVoted : "—"}
               </div>
               <div className="v-stat-delta" style={{ color: "var(--text-3)" }}>
-                94% majority aligned
+                94% majority aligned <span className="demo-tag">(demo)</span>
               </div>
             </div>
             <div className="v-card v-stat">
-              <div className="v-stat-label">Pending rewards</div>
+              <div className="v-stat-label">
+                Pending rewards <span className="demo-tag">(demo)</span>
+              </div>
               <div className="v-stat-value">$42.00</div>
               <div className="v-stat-delta delta-up">3 cases</div>
             </div>
@@ -356,11 +401,7 @@ export default function JurorProfileView() {
             <div className="v-side-label">Juror details</div>
             <SideRow
               label="Wallet"
-              value={
-                connected
-                  ? `${wallet.publicKey!.toBase58().slice(0, 4)}…${wallet.publicKey!.toBase58().slice(-4)}`
-                  : "—"
-              }
+              value={connected ? shortAddr(wallet.publicKey!) : "—"}
             />
             <SideRow
               label="Registered"
@@ -371,7 +412,9 @@ export default function JurorProfileView() {
           </div>
           <div className="v-sep" />
           <div>
-            <div className="v-side-label">Claimable rewards</div>
+            <div className="v-side-label">
+              Claimable rewards <span className="demo-tag">(demo)</span>
+            </div>
             <SideRow label="ESC-0039" value="$14.00" valueColor="var(--green)" />
             <SideRow label="ESC-0037" value="$8.50" valueColor="var(--green)" />
             <SideRow label="ESC-0033" value="$19.50" valueColor="var(--green)" />
@@ -388,7 +431,14 @@ export default function JurorProfileView() {
               disabled={!connected || claiming || !program}
               onClick={handleClaimAll}
             >
-              {claiming ? "Claiming…" : "Claim all rewards"}
+              {claiming ? (
+                <>
+                  <span className="spinner" />
+                  Confirming…
+                </>
+              ) : (
+                "Claim all rewards"
+              )}
             </button>
           </div>
         </aside>
