@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useOpenDisputes } from "@/lib/queries";
+import EmptyState from "./EmptyState";
 
 interface DemoDispute {
   id: string;
@@ -55,7 +56,7 @@ const DEMO_DISPUTES: DemoDispute[] = [
 ];
 
 const STATUS_BADGE: Record<DemoDispute["status"], string> = {
-  Disputed: "v-badge v-badge-gold",
+  Disputed: "v-badge v-badge-gold badge-pulse",
   Released: "v-badge v-badge-green",
   Funded: "v-badge v-badge-blue",
   Refunded: "v-badge v-badge-gold",
@@ -119,17 +120,13 @@ export default function DisputesListView() {
             </div>
 
             {connected && live.isLoading ? (
-              <div className="v-empty">Loading disputes from chain…</div>
+              <SkeletonRows />
             ) : connected && liveRows.length === 0 ? (
-              <div className="v-empty">
-                <p style={{ marginBottom: 8 }}>
-                  No open disputes match your wallet right now.
-                </p>
-                <p style={{ fontSize: 12.5 }}>
-                  When a payer raises a dispute on an escrow you&rsquo;re seated
-                  on, it will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon="⚖"
+                title="No open disputes"
+                description="When a payer raises a dispute on an escrow you're seated on, it will appear here."
+              />
             ) : connected ? (
               liveRows.map((d) => {
                 const id = d.publicKey.toBase58();
@@ -156,7 +153,7 @@ export default function DisputesListView() {
                       —
                     </div>
                     <div>
-                      <span className="v-badge v-badge-gold">
+                      <span className="v-badge v-badge-gold badge-pulse">
                         <span className="v-badge-dot" />
                         Disputed
                       </span>
@@ -354,5 +351,29 @@ function SideRow({ label, value }: { label: string; value: string }) {
       <span style={{ color: "var(--text-2)" }}>{label}</span>
       <span className="v-mono" style={{ fontWeight: 500 }}>{value}</span>
     </div>
+  );
+}
+
+function SkeletonRows() {
+  return (
+    <>
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="v-tr"
+          style={{ gridTemplateColumns: TABLE_COLS, cursor: "default" }}
+        >
+          <div className="skeleton" style={{ height: 14, width: 72 }} />
+          <div>
+            <div className="skeleton" style={{ height: 14, width: 180, marginBottom: 6 }} />
+            <div className="skeleton" style={{ height: 11, width: 120 }} />
+          </div>
+          <div className="skeleton" style={{ height: 14, width: 56 }} />
+          <div className="skeleton" style={{ height: 20, width: 76, borderRadius: 999 }} />
+          <div className="skeleton" style={{ height: 14, width: 48 }} />
+          <div className="skeleton" style={{ height: 28, width: 60, borderRadius: 6 }} />
+        </div>
+      ))}
+    </>
   );
 }

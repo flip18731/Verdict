@@ -281,10 +281,20 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
               </div>
               <div
                 className="v-mono"
-                style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-.5px" }}
+                style={{
+                  fontSize: 32,
+                  fontWeight: 600,
+                  letterSpacing: "-.5px",
+                  color: !isResolved && remaining < 3600 && remaining > 0 ? "var(--red)" : undefined,
+                }}
               >
                 {isResolved ? "—" : timer}
               </div>
+              {!isResolved && remaining < 3600 && remaining > 0 ? (
+                <div style={{ fontSize: 11.5, color: "var(--red)", fontWeight: 500, marginTop: 4 }}>
+                  Closing soon
+                </div>
+              ) : null}
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 6 }}>
@@ -427,28 +437,43 @@ export default function DisputeDetailLive({ disputePkStr }: Props) {
 
           {/* Vote actions */}
           {!isResolved ? (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-                marginBottom: 16,
-              }}
-            >
-              <VoteButton
-                label="↩ Refund petitioner"
-                desc={`Return ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to payer`}
-                tone="refund"
-                onClick={() => setPendingChoice("refund")}
-                disabled={busy || panelFull || remaining === 0}
-              />
-              <VoteButton
-                label="↗ Release to merchant"
-                desc={`Deliver ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to respondent`}
-                tone="release"
-                onClick={() => setPendingChoice("release")}
-                disabled={busy || panelFull || remaining === 0}
-              />
+            <div style={{ marginBottom: 16 }}>
+              <div
+                style={{
+                  background: "var(--gold-bg)",
+                  border: "1px solid var(--gold-border)",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  marginBottom: 12,
+                  fontSize: 12.5,
+                  color: "var(--gold)",
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
+                }}
+              >
+                <span>⚠</span>
+                <span>
+                  <strong>Your vote is final.</strong> Once submitted on-chain it
+                  cannot be changed. If you vote with the majority you earn +1 reputation.
+                </span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <VoteButton
+                  label="↩ Refund petitioner"
+                  desc={`Return ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to payer`}
+                  tone="refund"
+                  onClick={() => setPendingChoice("refund")}
+                  disabled={busy || panelFull || remaining === 0}
+                />
+                <VoteButton
+                  label="↗ Release to merchant"
+                  desc={`Deliver ${escrow ? (Number(escrow.amount) / 1e6).toFixed(2) + " USDC" : "the vault"} to respondent`}
+                  tone="release"
+                  onClick={() => setPendingChoice("release")}
+                  disabled={busy || panelFull || remaining === 0}
+                />
+              </div>
             </div>
           ) : null}
 
@@ -584,10 +609,13 @@ function VoteButton({
       className="v-card v-card-lg"
       style={{
         padding: "20px 24px",
+        minHeight: 56,
         textAlign: "left",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         background: "var(--bg)",
+        width: "100%",
+        transition: "box-shadow .15s, transform .15s",
       }}
     >
       <div

@@ -4,6 +4,7 @@ import "./globals.css";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { Providers } from "@/components/providers/Providers";
 import { GlobalNav } from "@/components/GlobalNav";
+import { ToastProvider } from "@/components/Toast";
 
 // Geist / Geist_Mono are not exported by next/font/google in Next 14.2.35.
 // Inter + JetBrains_Mono are the closest shipping substitutes; they keep the
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Providers>
           <GlobalNav />
           {children}
+          <ToastProvider />
         </Providers>
       </body>
     </html>

@@ -13,6 +13,7 @@ import {
   findVotePda,
   registerJurorIx,
 } from "@/lib/verdict-sdk";
+import EmptyState from "./EmptyState";
 
 interface CaseRow {
   id: string;
@@ -33,7 +34,14 @@ const VOTE_BADGE: Record<"Refund" | "Release", string> = {
   Release: "v-badge v-badge-blue",
 };
 
-const CASE_TABLE_COLS = "100px 1fr 90px 90px 90px";
+const CASE_TABLE_COLS = "100px 1fr 90px 90px 90px 60px";
+
+function tierOf(rep: number): { label: string; range: string; badgeClass: string } {
+  if (rep >= 2500) return { label: "Tier IV", range: "2,500+", badgeClass: "v-badge v-badge-blue" };
+  if (rep >= 1000) return { label: "Tier III", range: "1,000–2,499", badgeClass: "v-badge v-badge-gold" };
+  if (rep >= 500)  return { label: "Tier II",  range: "500–999",     badgeClass: "v-badge v-badge-gold" };
+  return { label: "Tier I", range: "0–499", badgeClass: "v-badge v-badge-gray" };
+}
 
 export default function JurorProfileView() {
   const wallet = useWallet();
@@ -153,7 +161,7 @@ export default function JurorProfileView() {
             onClick={handleClaimAll}
             disabled={claiming || !program}
           >
-            {claiming ? "Claiming…" : "Claim rewards"}
+            {claiming ? "Claiming…" : "Claim $42.00"}
           </button>
         ) : (
           <button className="v-btn v-btn-primary v-btn-sm" onClick={() => setVisible(true)}>
@@ -235,10 +243,10 @@ export default function JurorProfileView() {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>Tier progress</div>
                   <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-                    {repValue} / 1,000 to Tier III
+                    {repValue.toLocaleString()} rep · {tierOf(repValue).range}
                   </div>
                 </div>
-                <span className="v-badge v-badge-gold">Tier II</span>
+                <span className={tierOf(repValue).badgeClass}>{tierOf(repValue).label}</span>
               </div>
               <div style={{ padding: 20 }}>
                 <div
@@ -278,14 +286,16 @@ export default function JurorProfileView() {
 
           {connected && casesVoted === 0 ? (
             <div className="v-table">
-              <div className="v-empty">
-                You haven&rsquo;t voted on any cases yet. When a dispute is
-                assigned to your panel, it will appear in{" "}
-                <a href="/disputes" style={{ color: "var(--text-1)" }}>
-                  Active Disputes
-                </a>
-                .
-              </div>
+              <EmptyState
+                icon="⚖"
+                title="No cases voted yet"
+                description="When a dispute is assigned to your panel it will appear in Active Disputes."
+                action={
+                  <a href="/disputes" className="v-btn v-btn-ghost v-btn-sm" style={{ display: "inline-flex" }}>
+                    View disputes
+                  </a>
+                }
+              />
             </div>
           ) : (
             <div className="v-table">
@@ -295,6 +305,7 @@ export default function JurorProfileView() {
                 <div className="v-th">Your vote</div>
                 <div className="v-th">Outcome</div>
                 <div className="v-th">Reward</div>
+                <div className="v-th">Aligned</div>
               </div>
               {DEMO_CASES.map((c) => (
                 <div
@@ -325,6 +336,14 @@ export default function JurorProfileView() {
                     }}
                   >
                     {c.reward ?? "—"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: c.yourVote === c.outcome ? "var(--green)" : "var(--red)",
+                    }}
+                  >
+                    {c.yourVote === c.outcome ? "✓" : "✗"}
                   </div>
                 </div>
               ))}
