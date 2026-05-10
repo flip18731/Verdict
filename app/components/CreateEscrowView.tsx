@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { BN } from "@coral-xyz/anchor";
 import {
   TOKEN_PROGRAM_ID,
@@ -21,7 +21,6 @@ import { sendTx, TxError } from "@/lib/sendTx";
 import { TEST_USDC_MINT, explorerTxUrl } from "@/lib/config";
 
 type Step = 1 | 2 | 3 | 4;
-const TOTAL_STEPS = 4;
 
 export default function CreateEscrowView() {
   const wallet = useWallet();
@@ -29,6 +28,7 @@ export default function CreateEscrowView() {
   const { setVisible } = useWalletModal();
   const program = useVerdictProgram();
   const qc = useQueryClient();
+  const router = useRouter();
 
   const [step, setStep] = useState<Step>(1);
   const [merchant, setMerchant] = useState("");
@@ -122,6 +122,7 @@ export default function CreateEscrowView() {
       await qc.invalidateQueries({ queryKey: ["escrows"] });
       void evidenceUri;
       void votingWindowHours;
+      setTimeout(() => router.push("/escrows"), 2000);
     } catch (err) {
       setError(
         err instanceof TxError
@@ -147,7 +148,14 @@ export default function CreateEscrowView() {
   return (
     <div className="wizard-wrap">
       <div className="v-card" style={{ padding: 32 }}>
-        <div className="wizard-progress">Step {step} of {TOTAL_STEPS}</div>
+        <div className="wizard-dots">
+          {([1, 2, 3, 4] as Step[]).map((n) => (
+            <div
+              key={n}
+              className={`wizard-dot${step === n ? " active" : ""}`}
+            />
+          ))}
+        </div>
 
         {step === 1 ? (
           <div className="wizard-step" key="step-1">
@@ -198,6 +206,24 @@ export default function CreateEscrowView() {
               onChange={(e) => setAmount(e.target.value)}
               autoFocus
             />
+            {amountValid ? (
+              <div
+                className="v-mono"
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  color: "var(--text-1)",
+                  margin: "12px 0 4px",
+                  letterSpacing: "-.4px",
+                }}
+              >
+                {amountNum.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                <span style={{ fontSize: 13, fontWeight: 400, color: "var(--text-3)" }}>USDC</span>
+              </div>
+            ) : null}
             <div className="v-field-hint">
               Funds are held in a program-owned vault. Neither party can access
               them without a verdict or release.
@@ -283,9 +309,9 @@ export default function CreateEscrowView() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <ReviewRow label="Merchant" value={merchantPreview} />
-              <ReviewRow label="Amount" value={`${amountPreview} USDC`} />
-              <ReviewRow label="Voting window" value={`${votingWindowHours || "6"} hours`} />
+              <ReviewRow label="Merchant" value={merchantPreview} onEdit={() => setStep(1)} />
+              <ReviewRow label="Amount" value={`${amountPreview} USDC`} onEdit={() => setStep(2)} />
+              <ReviewRow label="Voting window" value={`${votingWindowHours || "6"} hours`} onEdit={() => setStep(3)} />
               <ReviewRow label="Panel size" value="3 jurors" />
               {evidenceUri ? (
                 <ReviewRow
@@ -295,6 +321,7 @@ export default function CreateEscrowView() {
                       ? `${evidenceUri.slice(0, 14)}…${evidenceUri.slice(-10)}`
                       : evidenceUri
                   }
+                  onEdit={() => setStep(3)}
                 />
               ) : null}
             </div>
@@ -351,9 +378,9 @@ export default function CreateEscrowView() {
                 ← Back
               </button>
               {signature ? (
-                <Link href="/escrows" className="v-btn v-btn-primary">
-                  View my escrows →
-                </Link>
+                <span className="v-btn v-btn-primary" style={{ opacity: 0.7 }}>
+                  Redirecting…
+                </span>
               ) : (
                 <button
                   className="v-btn v-btn-primary"
@@ -384,11 +411,30 @@ export default function CreateEscrowView() {
   );
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function ReviewRow({ label, value, onEdit }: { label: string; value: string; onEdit?: () => void }) {
   return (
     <div className="wizard-review-row">
       <span className="wizard-review-label">{label}</span>
-      <span className="wizard-review-val">{value}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="wizard-review-val">{value}</span>
+        {onEdit ? (
+          <button
+            onClick={onEdit}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: 11.5,
+              color: "var(--text-3)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              padding: 0,
+              textDecoration: "underline",
+            }}
+          >
+            Edit
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

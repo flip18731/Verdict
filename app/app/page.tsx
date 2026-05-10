@@ -6,9 +6,27 @@ const STATS = [
   { label: "Median resolution", value: "3.4h" },
 ];
 
+const HOW_STEPS = [
+  {
+    n: "1",
+    title: "Lock funds",
+    desc: "Payer creates an escrow and deposits USDC into a program-controlled vault.",
+  },
+  {
+    n: "2",
+    title: "Raise dispute",
+    desc: "If service fails, payer raises a dispute and attaches evidence on-chain.",
+  },
+  {
+    n: "3",
+    title: "Panel rules",
+    desc: "Three bonded jurors vote within the window. Vault settles to the majority verdict.",
+  },
+];
+
 export default function Home() {
   return (
-    <div style={{ maxWidth: 640, margin: "80px auto", padding: "0 24px" }}>
+    <div style={{ maxWidth: 680, margin: "80px auto", padding: "0 24px" }}>
       <div
         style={{
           marginBottom: 8,
@@ -44,7 +62,7 @@ export default function Home() {
         bonded juror network resolves it onchain in hours — not weeks. The missing
         third leg of the agent commerce stack.
       </p>
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 48 }}>
         <Link href="/escrows/new" className="v-btn v-btn-primary">
           Open an escrow →
         </Link>
@@ -52,22 +70,77 @@ export default function Home() {
           View disputes
         </Link>
       </div>
+
+      {/* Stats */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(3,1fr)",
           gap: 12,
-          marginTop: 48,
+          marginBottom: 40,
         }}
       >
         {STATS.map((s) => (
-          <div key={s.label} className="v-card" style={{ padding: 16 }}>
+          <div key={s.label} className="v-card v-card-hover" style={{ padding: 16 }}>
             <div className="v-stat-label">{s.label}</div>
             <div className="v-stat-value" style={{ fontSize: 20 }}>
               {s.value}
             </div>
           </div>
         ))}
+      </div>
+
+      {/* How it works */}
+      <div style={{ marginBottom: 40 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontFamily: "var(--font-mono)",
+            color: "var(--text-3)",
+            letterSpacing: ".1em",
+            textTransform: "uppercase",
+            marginBottom: 16,
+          }}
+        >
+          How it works
+        </div>
+        <div
+          className="v-card"
+          style={{ display: "flex", padding: 0, overflow: "hidden" }}
+        >
+          {HOW_STEPS.map((step, i) => (
+            <div
+              key={step.n}
+              className="how-step"
+              style={{
+                borderRight: i < HOW_STEPS.length - 1 ? "1px solid var(--border)" : "none",
+              }}
+            >
+              <div className="how-step-num">{step.n}</div>
+              <div className="how-step-title">{step.title}</div>
+              <div className="how-step-desc">{step.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Trust bar */}
+      <div
+        style={{
+          display: "flex",
+          gap: 24,
+          alignItems: "center",
+          color: "var(--text-3)",
+          fontSize: 12.5,
+          fontFamily: "var(--font-mono)",
+          borderTop: "1px solid var(--border)",
+          paddingTop: 24,
+        }}
+      >
+        <span>⚡ Solana · sub-second finality</span>
+        <span>🔒 Program-owned vault</span>
+        <span>⚖ Bonded jurors</span>
+        <span>✓ Open source</span>
       </div>
     </div>
   );

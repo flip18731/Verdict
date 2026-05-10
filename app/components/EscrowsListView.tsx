@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { BN } from "@coral-xyz/anchor";
+import EmptyState from "./EmptyState";
 import {
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
@@ -88,6 +89,8 @@ function statusOf(account: { status: object }): StatusKey {
 }
 
 type Action = { kind: "release" | "raise"; row: WithKey<Escrow> };
+type FilterTab = "All" | "Funded" | "Disputed" | "Released" | "Refunded";
+const FILTER_TABS: FilterTab[] = ["All", "Funded", "Disputed", "Released", "Refunded"];
 const TABLE_COLS = "100px 1fr 110px 110px 90px 1fr";
 const DEFAULT_VOTING_WINDOW_SECONDS = 6 * 3600;
 
@@ -104,9 +107,13 @@ export default function EscrowsListView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
 
   const connected = !!wallet.publicKey;
   const liveRows = live.data ?? [];
+  const filteredRows = activeFilter === "All"
+    ? liveRows
+    : liveRows.filter((e) => statusOf(e.account as { status: object }) === activeFilter);
 
   async function executeAction() {
     if (!pending || !program || !wallet.publicKey) return;
@@ -198,6 +205,20 @@ export default function EscrowsListView() {
       {error ? <Banner kind="error" text={error} /> : null}
       {info ? <Banner kind="success" text={info} /> : null}
 
+      {connected ? (
+        <div className="filter-pills" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab}
+              className={`filter-pill${activeFilter === tab ? " active" : ""}`}
+              onClick={() => setActiveFilter(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className="v-layout">
         <div className="v-layout-main">
           {!connected ? (
@@ -235,22 +256,29 @@ export default function EscrowsListView() {
             </div>
 
             {connected && live.isLoading ? (
-              <div className="v-empty">Loading escrows from chain…</div>
+              <EmptyState
+                icon="📑"
+                title="Loading escrows…"
+                description="Fetching your positions from the chain."
+              />
             ) : connected && liveRows.length === 0 ? (
-              <div className="v-empty">
-                <p style={{ marginBottom: 8 }}>
-                  You have no escrows yet — neither as payer nor as merchant.
-                </p>
-                <Link
-                  href="/escrows/new"
-                  className="v-btn v-btn-primary v-btn-sm"
-                  style={{ display: "inline-flex" }}
-                >
-                  Open your first escrow →
-                </Link>
-              </div>
+              <EmptyState
+                icon="📑"
+                title="No escrows yet"
+                description="You have no escrows — neither as payer nor as merchant."
+                action={
+                  <Link href="/escrows/new" className="v-btn v-btn-primary v-btn-sm" style={{ display: "inline-flex" }}>
+                    Open your first escrow →
+                  </Link>
+                }
+              />
+            ) : connected && filteredRows.length === 0 ? (
+              <EmptyState
+                title={`No ${activeFilter.toLowerCase()} escrows`}
+                description="Try a different filter."
+              />
             ) : connected ? (
-              liveRows.map((e) => {
+              filteredRows.map((e) => {
                 const id = e.publicKey.toBase58();
                 const role =
                   wallet.publicKey?.toBase58() === e.account.payer.toBase58()
