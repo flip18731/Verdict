@@ -101,7 +101,14 @@ export default function ConfirmModal({
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? "Working…" : confirmLabel}
+            {busy ? (
+              <>
+                <span className="spinner" />
+                Confirming…
+              </>
+            ) : (
+              confirmLabel
+            )}
           </button>
         </div>
       </div>

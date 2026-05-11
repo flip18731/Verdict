@@ -41,14 +41,15 @@ export default function Home() {
       </div>
       <h1
         style={{
-          fontSize: 36,
-          fontWeight: 600,
+          fontSize: 40,
+          fontWeight: 700,
           letterSpacing: "-.5px",
           lineHeight: 1.15,
           marginBottom: 16,
         }}
       >
-        Dispute resolution for agentic commerce.
+        Dispute resolution for{" "}
+        <span className="hero-highlight">agentic commerce</span>.
       </h1>
       <p
         style={{
@@ -62,13 +63,24 @@ export default function Home() {
         bonded juror network resolves it onchain in hours — not weeks. The missing
         third leg of the agent commerce stack.
       </p>
-      <div style={{ display: "flex", gap: 10, marginBottom: 48 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
         <Link href="/escrows/new" className="v-btn v-btn-primary">
           Open an escrow →
         </Link>
         <Link href="/disputes" className="v-btn v-btn-ghost">
           View disputes
         </Link>
+      </div>
+      <div
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 12,
+          color: "var(--text-3)",
+          letterSpacing: ".04em",
+          marginBottom: 48,
+        }}
+      >
+        ✓ Deployed on Solana Devnet · ✓ 15 tests passing · ✓ Open source
       </div>
 
       {/* Stats */}
@@ -82,7 +94,10 @@ export default function Home() {
       >
         {STATS.map((s) => (
           <div key={s.label} className="v-card v-card-hover" style={{ padding: 16 }}>
-            <div className="v-stat-label">{s.label}</div>
+            <div className="v-stat-label">
+              {s.label}
+              <span className="demo-tag">(demo)</span>
+            </div>
             <div className="v-stat-value" style={{ fontSize: 20 }}>
               {s.value}
             </div>

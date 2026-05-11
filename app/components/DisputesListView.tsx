@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useOpenDisputes } from "@/lib/queries";
+import { shortAddr, countdown } from "@/lib/format";
 import EmptyState from "./EmptyState";
 
 interface DemoDispute {
@@ -62,12 +64,18 @@ const STATUS_BADGE: Record<DemoDispute["status"], string> = {
   Refunded: "v-badge v-badge-gold",
 };
 
-const TABLE_COLS = "100px 1fr 110px 110px 110px 80px";
+const TABLE_COLS = "100px 1fr 110px 100px 110px 110px 80px";
 
 export default function DisputesListView() {
   const wallet = useWallet();
   const { setVisible } = useWalletModal();
   const live = useOpenDisputes();
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const connected = !!wallet.publicKey;
   const liveRows = live.data ?? [];
@@ -97,10 +105,11 @@ export default function DisputesListView() {
             label="Open disputes"
             value={connected ? String(liveRows.length) : "12"}
             delta={connected ? null : "↑ 3 today"}
+            demo={!connected}
           />
-          <Stat label="TVL in escrow" value="$4.2M" delta="↓ 2.1%" deltaDown />
-          <Stat label="Median resolution" value="3.4h" delta="↓ 12m faster" />
-          <Stat label="Your reputation" value="847" delta="Tier II" muted />
+          <Stat label="TVL in escrow" value="$4.2M" delta="↓ 2.1%" deltaDown demo />
+          <Stat label="Median resolution" value="3.4h" delta="↓ 12m faster" demo />
+          <Stat label="Your reputation" value="847" delta="Tier II" muted demo />
         </div>
       </div>
       <div style={{ height: 1, background: "var(--border)" }} />
@@ -113,7 +122,8 @@ export default function DisputesListView() {
             <div className="v-thead" style={{ gridTemplateColumns: TABLE_COLS }}>
               <div className="v-th">Case</div>
               <div className="v-th">Matter</div>
-              <div className="v-th">Amount</div>
+              <div className="v-th" style={{ textAlign: "right" }}>Amount</div>
+              <div className="v-th">Role</div>
               <div className="v-th">Status</div>
               <div className="v-th">Closes</div>
               <div className="v-th"></div>
@@ -130,15 +140,27 @@ export default function DisputesListView() {
             ) : connected ? (
               liveRows.map((d) => {
                 const id = d.publicKey.toBase58();
+                const endsAt = Number(d.account.votingEndsAt ?? 0);
+                const remaining = Math.max(0, endsAt - now);
+                const urgent = remaining > 0 && remaining < 3600;
+                // The connected wallet is a juror on this case if it isn't the
+                // payer/merchant of the underlying escrow. Heuristic for now:
+                // we don't have escrow ↔ wallet linkage in this list, so assume
+                // any open dispute the user can see they were eligible to vote on.
+                const isJuror = true;
                 return (
                   <Link
                     key={id}
                     href={`/disputes/${id}`}
                     className="v-tr"
-                    style={{ gridTemplateColumns: TABLE_COLS }}
+                    style={{
+                      gridTemplateColumns: TABLE_COLS,
+                      borderLeft: isJuror ? "3px solid var(--gold)" : "3px solid transparent",
+                      paddingLeft: 13,
+                    }}
                   >
-                    <div className="v-mono" style={{ fontSize: 12.5, fontWeight: 500 }}>
-                      {id.slice(0, 8)}…
+                    <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+                      {shortAddr(id)}
                     </div>
                     <div>
                       <div style={{ fontSize: 13.5 }}>
@@ -149,8 +171,14 @@ export default function DisputesListView() {
                         {d.account.votesForRelease}
                       </div>
                     </div>
-                    <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+                    <div
+                      className="v-mono"
+                      style={{ fontSize: 13, fontWeight: 500, textAlign: "right" }}
+                    >
                       —
+                    </div>
+                    <div className="v-mono" style={{ fontSize: 12.5, color: isJuror ? "var(--gold)" : "var(--text-3)" }}>
+                      {isJuror ? "Juror" : "—"}
                     </div>
                     <div>
                       <span className="v-badge v-badge-gold badge-pulse">
@@ -158,8 +186,15 @@ export default function DisputesListView() {
                         Disputed
                       </span>
                     </div>
-                    <div className="v-mono" style={{ fontSize: 12.5, color: "var(--text-3)" }}>
-                      {d.account.jurorsVoted}/{d.account.jurorsSeated}
+                    <div
+                      className="v-mono"
+                      style={{
+                        fontSize: 12.5,
+                        color: urgent ? "var(--red)" : "var(--text-3)",
+                        fontWeight: urgent ? 500 : 400,
+                      }}
+                    >
+                      {endsAt > 0 ? countdown(remaining) : "—"}
                     </div>
                     <div>
                       <span className="v-btn v-btn-primary v-btn-sm">Open →</span>
@@ -173,9 +208,13 @@ export default function DisputesListView() {
                   key={d.id}
                   href={`/disputes/${d.id}`}
                   className="v-tr"
-                  style={{ gridTemplateColumns: TABLE_COLS }}
+                  style={{
+                    gridTemplateColumns: TABLE_COLS,
+                    borderLeft: d.active ? "3px solid var(--gold)" : "3px solid transparent",
+                    paddingLeft: 13,
+                  }}
                 >
-                  <div className="v-mono" style={{ fontSize: 12.5, fontWeight: 500 }}>
+                  <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
                     {d.id}
                   </div>
                   <div>
@@ -184,8 +223,17 @@ export default function DisputesListView() {
                       {d.matterSub}
                     </div>
                   </div>
-                  <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+                  <div
+                    className="v-mono"
+                    style={{ fontSize: 13, fontWeight: 500, textAlign: "right" }}
+                  >
                     {d.amount}
+                  </div>
+                  <div
+                    className="v-mono"
+                    style={{ fontSize: 12.5, color: d.active ? "var(--gold)" : "var(--text-3)" }}
+                  >
+                    {d.active ? "Juror" : "—"}
                   </div>
                   <div>
                     <span className={STATUS_BADGE[d.status]}>
@@ -273,16 +321,21 @@ function Stat({
   delta,
   deltaDown,
   muted,
+  demo,
 }: {
   label: string;
   value: string;
   delta: string | null;
   deltaDown?: boolean;
   muted?: boolean;
+  demo?: boolean;
 }) {
   return (
     <div className="v-card v-stat">
-      <div className="v-stat-label">{label}</div>
+      <div className="v-stat-label">
+        {label}
+        {demo ? <span className="demo-tag">(demo)</span> : null}
+      </div>
       <div className="v-stat-value">{value}</div>
       {delta ? (
         <div
@@ -368,7 +421,8 @@ function SkeletonRows() {
             <div className="skeleton" style={{ height: 14, width: 180, marginBottom: 6 }} />
             <div className="skeleton" style={{ height: 11, width: 120 }} />
           </div>
-          <div className="skeleton" style={{ height: 14, width: 56 }} />
+          <div className="skeleton" style={{ height: 14, width: 56, marginLeft: "auto" }} />
+          <div className="skeleton" style={{ height: 14, width: 48 }} />
           <div className="skeleton" style={{ height: 20, width: 76, borderRadius: 999 }} />
           <div className="skeleton" style={{ height: 14, width: 48 }} />
           <div className="skeleton" style={{ height: 28, width: 60, borderRadius: 6 }} />

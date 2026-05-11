@@ -22,6 +22,8 @@ import {
 import { useEscrowsForWallet, type WithKey } from "@/lib/queries";
 import { useVerdictProgram } from "@/lib/useVerdictProgram";
 import { sendTx, TxError } from "@/lib/sendTx";
+import { shortAddr, formatUsdc } from "@/lib/format";
+import { explorerTxUrl } from "@/lib/config";
 import ConfirmModal from "./ConfirmModal";
 
 interface DemoEscrow {
@@ -106,7 +108,7 @@ export default function EscrowsListView() {
   const [evidenceUri, setEvidenceUri] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ text: string; sig?: string } | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
 
   const connected = !!wallet.publicKey;
@@ -160,16 +162,18 @@ export default function EscrowsListView() {
         );
       }
 
-      await sendTx({ connection, wallet, ixs });
+      const sig = await sendTx({ connection, wallet, ixs });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["escrows"] }),
         qc.invalidateQueries({ queryKey: ["disputes:open"] }),
       ]);
-      setInfo(
-        pending.kind === "release"
-          ? "Escrow released."
-          : "Dispute raised. Jurors can now vote.",
-      );
+      setInfo({
+        text:
+          pending.kind === "release"
+            ? "Escrow released."
+            : "Dispute raised. Jurors can now vote.",
+        sig,
+      });
       setPending(null);
       setEvidenceUri("");
     } catch (err) {
@@ -203,7 +207,35 @@ export default function EscrowsListView() {
       </div>
 
       {error ? <Banner kind="error" text={error} /> : null}
-      {info ? <Banner kind="success" text={info} /> : null}
+      {info ? (
+        <Banner
+          kind="success"
+          text={
+            <>
+              {info.text}
+              {info.sig ? (
+                <>
+                  {" "}
+                  <a
+                    href={explorerTxUrl(info.sig)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="v-mono"
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-3)",
+                      textDecoration: "underline",
+                      marginLeft: 6,
+                    }}
+                  >
+                    {shortAddr(info.sig)}
+                  </a>
+                </>
+              ) : null}
+            </>
+          }
+        />
+      ) : null}
 
       {connected ? (
         <div className="filter-pills" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
@@ -249,7 +281,7 @@ export default function EscrowsListView() {
             <div className="v-thead" style={{ gridTemplateColumns: TABLE_COLS }}>
               <div className="v-th">Case</div>
               <div className="v-th">Matter</div>
-              <div className="v-th">Amount</div>
+              <div className="v-th" style={{ textAlign: "right" }}>Amount</div>
               <div className="v-th">Status</div>
               <div className="v-th">Role</div>
               <div className="v-th">Action</div>
@@ -294,20 +326,23 @@ export default function EscrowsListView() {
                     className="v-tr"
                     style={{ gridTemplateColumns: TABLE_COLS, cursor: "default" }}
                   >
-                    <div className="v-mono" style={{ fontSize: 12.5, fontWeight: 500 }}>
-                      {id.slice(0, 8)}…
+                    <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+                      {shortAddr(id)}
                     </div>
                     <div>
                       <div style={{ fontSize: 13.5 }}>
-                        {e.account.payer.toBase58().slice(0, 6)} →{" "}
-                        {e.account.merchant.toBase58().slice(0, 6)}
+                        <span className="v-mono">{shortAddr(e.account.payer)}</span> →{" "}
+                        <span className="v-mono">{shortAddr(e.account.merchant)}</span>
                       </div>
                       <div className="v-mono" style={{ fontSize: 11.5, color: "var(--text-3)" }}>
                         escrow id {String(e.account.escrowId)}
                       </div>
                     </div>
-                    <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
-                      {(Number(e.account.amount) / 1e6).toFixed(2)} USDC
+                    <div
+                      className="v-mono"
+                      style={{ fontSize: 13, fontWeight: 500, textAlign: "right" }}
+                    >
+                      {formatUsdc(e.account.amount)} USDC
                     </div>
                     <div>
                       <span className={STATUS_BADGE[status]}>
@@ -355,7 +390,7 @@ export default function EscrowsListView() {
                   className="v-tr"
                   style={{ gridTemplateColumns: TABLE_COLS }}
                 >
-                  <div className="v-mono" style={{ fontSize: 12.5, fontWeight: 500 }}>
+                  <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
                     {r.id}
                   </div>
                   <div>
@@ -364,7 +399,10 @@ export default function EscrowsListView() {
                       {r.matterSub}
                     </div>
                   </div>
-                  <div className="v-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+                  <div
+                    className="v-mono"
+                    style={{ fontSize: 13, fontWeight: 500, textAlign: "right" }}
+                  >
                     {r.amount}
                   </div>
                   <div>
@@ -436,13 +474,14 @@ export default function EscrowsListView() {
           <>
             This pays{" "}
             <strong>
-              {pending
-                ? (Number(pending.row.account.amount) / 1e6).toFixed(2)
-                : "—"}{" "}
-              USDC
+              {pending ? formatUsdc(pending.row.account.amount) : "—"} USDC
             </strong>{" "}
-            from the vault to the merchant and closes both accounts atomically.
-            The action is final and cannot be undone.
+            from the vault to{" "}
+            <span className="v-mono">
+              {pending ? shortAddr(pending.row.account.merchant) : "—"}
+            </span>{" "}
+            and closes both accounts atomically. The action is final and cannot
+            be undone.
           </>
         }
         confirmLabel="Release funds"
